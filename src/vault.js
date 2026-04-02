@@ -28,9 +28,9 @@ export async function deposit(bridge, opts) {
 
 async function depositDirect(bridge, env, poId, amountRaw) {
   const result = await bridge.chain('ethereum', 'call-contract', {
-    contractAddress: env.operator,
-    functionSignature: METHODS.deposit,
-    args: JSON.stringify([poId, amountRaw]),
+    contract: env.operator,
+    method: METHODS.deposit,
+    args: [poId, amountRaw],
   }, env.network)
 
   return {
@@ -55,17 +55,17 @@ async function depositCrossChain(bridge, circle, env, poId, amountRaw, sourceCha
 
   // 1. Approve USDC for TokenMessenger
   await bridge.chain('ethereum', 'call-contract', {
-    contractAddress: sourceUsdc,
-    functionSignature: METHODS.approve,
-    args: JSON.stringify([CCTP.tokenMessenger, amountRaw]),
+    contract: sourceUsdc,
+    method: METHODS.approve,
+    args: [CCTP.tokenMessenger, amountRaw],
   }, sourceChain)
 
   // 2. Burn USDC via CCTP
   const recipientBytes32 = padAddressToBytes32(env.operator)
   const burnResult = await bridge.chain('ethereum', 'call-contract', {
-    contractAddress: CCTP.tokenMessenger,
-    functionSignature: METHODS.depositForBurn,
-    args: JSON.stringify([amountRaw, CCTP_DOMAINS.base, recipientBytes32, sourceUsdc]),
+    contract: CCTP.tokenMessenger,
+    method: METHODS.depositForBurn,
+    args: [amountRaw, CCTP_DOMAINS.base, recipientBytes32, sourceUsdc],
   }, sourceChain)
 
   // 3. Extract message hash from logs
@@ -83,16 +83,16 @@ async function depositCrossChain(bridge, circle, env, poId, amountRaw, sourceCha
 
   // 5. Mint USDC on Base
   const mintResult = await bridge.chain('ethereum', 'call-contract', {
-    contractAddress: CCTP.messageTransmitter,
-    functionSignature: METHODS.receiveMessage,
-    args: JSON.stringify([burnResult.messageBytes, attestation.attestation]),
+    contract: CCTP.messageTransmitter,
+    method: METHODS.receiveMessage,
+    args: [burnResult.messageBytes, attestation.attestation],
   }, 'base')
 
   // 6. Deposit into vault
   const depositResult = await bridge.chain('ethereum', 'call-contract', {
-    contractAddress: env.operator,
-    functionSignature: METHODS.depositFromBalance,
-    args: JSON.stringify([poId, amountRaw]),
+    contract: env.operator,
+    method: METHODS.depositFromBalance,
+    args: [poId, amountRaw],
   }, env.network)
 
   return {
@@ -113,9 +113,9 @@ async function depositCrossChain(bridge, circle, env, poId, amountRaw, sourceCha
 export async function withdrawOldest(bridge, opts) {
   const env = resolveEnvironment(opts.environment)
   const result = await bridge.chain('ethereum', 'call-contract', {
-    contractAddress: env.operator,
-    functionSignature: METHODS.withdrawOldest,
-    args: '[]',
+    contract: env.operator,
+    method: METHODS.withdrawOldest,
+    args: [],
   }, env.network)
 
   return {
@@ -128,9 +128,9 @@ export async function withdrawOldest(bridge, opts) {
 export async function withdrawById(bridge, opts) {
   const env = resolveEnvironment(opts.environment)
   const result = await bridge.chain('ethereum', 'call-contract', {
-    contractAddress: env.operator,
-    functionSignature: METHODS.withdrawAndRepay,
-    args: JSON.stringify([opts.poId]),
+    contract: env.operator,
+    method: METHODS.withdrawAndRepay,
+    args: [opts.poId],
   }, env.network)
 
   return {
@@ -145,9 +145,9 @@ export async function status(bridge, opts) {
   const env = resolveEnvironment(opts.environment)
   const read = (method) =>
     bridge.chain('ethereum', 'read-contract', {
-      contractAddress: env.operator,
-      functionSignature: method,
-      args: '[]',
+      contract: env.operator,
+      method: method,
+      args: [],
       ...(opts.rpcUrl ? { rpcUrl: opts.rpcUrl } : {}),
     }, env.network)
 
@@ -177,9 +177,9 @@ export async function status(bridge, opts) {
 export async function listDeposits(bridge, opts) {
   const env = resolveEnvironment(opts.environment)
   const result = await bridge.chain('ethereum', 'read-contract', {
-    contractAddress: env.operator,
-    functionSignature: METHODS.paginatedDeposits,
-    args: JSON.stringify([String(opts.from || 0), String(opts.to || 10)]),
+    contract: env.operator,
+    method: METHODS.paginatedDeposits,
+    args: [String(opts.from || 0), String(opts.to || 10)],
   }, env.network)
 
   const data = result.result || result
