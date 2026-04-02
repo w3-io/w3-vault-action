@@ -1,0 +1,28 @@
+name: vault-demo-v3
+
+on:
+  workflow_dispatch:
+    inputs:
+      amount:
+        description: "USDC amount (e.g. 10.00)"
+        required: true
+        type: string
+
+jobs:
+  deposit:
+    runs-on: ubuntu-latest
+    environment: 0x031f8576680353f131355c2169ebae5c661710bbf3a985bbadf4f5882969bf23
+    steps:
+      - name: Deposit USDC into Yelay vault
+        id: deposit
+        uses: w3-io/w3-vault-action@v0
+        env:
+          W3_SECRET_ETHEREUM: ${{ secrets.W3_SECRET_ETHEREUM }}
+        with:
+          command: deposit
+          amount: ${{ inputs.amount }}
+          environment: testing
+          receiver: "0xA6F7A79E156A35186C5ADBb699C0Fd47f16D8A29"
+          rpc-url: ${{ secrets.BASE_RPC_URL }}
+        bridge-allow:
+          - "ethereum"
