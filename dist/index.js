@@ -28134,7 +28134,7 @@ const METHODS = {
     'function paginatedDeposits(uint256 from, uint256 to) returns (string[] poIds, uint256[] principals, uint256[] currentValues)',
   depositQueueLength: 'function depositQueueLength() returns (uint256)',
 
-  // Yelay Vault
+  // W3 Vault
   convertToAssets: 'function convertToAssets(uint256 shares) returns (uint256)',
   convertToShares: 'function convertToShares(uint256 assets) returns (uint256)',
 }

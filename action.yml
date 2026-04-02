@@ -1,5 +1,5 @@
 name: 'W3 Vault Action'
-description: 'Deposit and withdraw USDC from W3 Yelay vaults, with cross-chain CCTP bridging'
+description: 'Deposit and withdraw USDC from W3 Vaults, with cross-chain CCTP bridging'
 author: 'w3-io'
 
 inputs:

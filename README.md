@@ -1,6 +1,6 @@
 # W3 Vault Action
 
-Deposit and withdraw USDC from Yelay vaults with cross-chain CCTP bridging.
+Deposit and withdraw USDC from W3 Vaults with cross-chain CCTP bridging.
 
 ## Quick Start
 
@@ -18,7 +18,7 @@ Deposit and withdraw USDC from Yelay vaults with cross-chain CCTP bridging.
 
 | Command | Description |
 |---------|-------------|
-| `deposit` | Deposit USDC into the Yelay vault. Direct from Base or cross-chain via CCTP. |
+| `deposit` | Deposit USDC into the W3 Vault. Direct from Base or cross-chain via CCTP. |
 | `withdraw-oldest` | Withdraw the oldest active deposit. Redeems shares and repays. |
 | `withdraw-by-id` | Withdraw a specific deposit by purchase order ID. |
 | `status` | Get vault status: total deposited, active count, accrued interest. |
@@ -92,7 +92,7 @@ For deposits from chains other than Base, the action:
 2. Burns USDC via CCTP `depositForBurn`
 3. Polls Circle IRIS API for attestation
 4. Mints USDC on Base via `receiveMessage`
-5. Deposits into the Yelay vault
+5. Deposits into the W3 Vault
 
 Supported source chains: ethereum, avalanche, arbitrum, optimism, polygon, base (direct).
 
