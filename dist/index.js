@@ -28290,6 +28290,7 @@ async function vault_status(bridge, opts) {
       contractAddress: env.operator,
       functionSignature: method,
       args: '[]',
+      ...(opts.rpcUrl ? { rpcUrl: opts.rpcUrl } : {}),
     }, env.network)
 
   const [totalDeposited, activeCount, canWithdrawResult, interest, queueLength] =
@@ -28423,7 +28424,8 @@ const router = createCommandRouter({
 
   status: async () => {
     const environment = lib_core.getInput('environment') || 'testing'
-    const result = await vault_status(bridge, { environment })
+    const rpcUrl = lib_core.getInput('rpc-url') || undefined
+    const result = await vault_status(bridge, { environment, rpcUrl })
     setJsonOutput('result', result)
     writeSummary('status', result)
   },

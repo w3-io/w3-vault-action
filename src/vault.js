@@ -148,6 +148,7 @@ export async function status(bridge, opts) {
       contractAddress: env.operator,
       functionSignature: method,
       args: '[]',
+      ...(opts.rpcUrl ? { rpcUrl: opts.rpcUrl } : {}),
     }, env.network)
 
   const [totalDeposited, activeCount, canWithdrawResult, interest, queueLength] =

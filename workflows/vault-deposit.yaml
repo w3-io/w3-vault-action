@@ -1,0 +1,39 @@
+name: vault-status
+
+on:
+  workflow_dispatch:
+    inputs:
+      po_id:
+        description: "Purchase order ID"
+        required: true
+        type: string
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    outputs:
+      total: ${{ steps.total.outputs.result }}
+      active: ${{ steps.active.outputs.result }}
+    steps:
+      - name: Read total deposited
+        id: total
+        ethereum:
+          network: base
+          read:
+            read-contract:
+              contract: "0xd1b1afe415f0efb2d31c672d77cd5db810f5e02c"
+              method: "function totalDeposited() returns (uint256)"
+
+      - name: Read active deposits count
+        id: active
+        ethereum:
+          network: base
+          read:
+            read-contract:
+              contract: "0xd1b1afe415f0efb2d31c672d77cd5db810f5e02c"
+              method: "function activeDepositsCount() returns (uint256)"
+
+      - name: Report
+        run: |
+          echo "Total deposited (raw): ${{ steps.total.outputs.result }}"
+          echo "Active deposits: ${{ steps.active.outputs.result }}"

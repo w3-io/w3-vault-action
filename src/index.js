@@ -45,7 +45,8 @@ const router = createCommandRouter({
 
   status: async () => {
     const environment = core.getInput('environment') || 'testing'
-    const result = await status(bridge, { environment })
+    const rpcUrl = core.getInput('rpc-url') || undefined
+    const result = await status(bridge, { environment, rpcUrl })
     setJsonOutput('result', result)
     writeSummary('status', result)
   },

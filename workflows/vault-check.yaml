@@ -1,0 +1,17 @@
+name: vault-check-v4
+
+on: workflow_dispatch
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get vault status
+        id: status
+        uses: w3-io/w3-vault-action@v0
+        with:
+          command: status
+          environment: testing
+          rpc-url: "https://mainnet.base.org"
+        bridge-allow:
+          - "ethereum/*"
