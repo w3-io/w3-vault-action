@@ -27997,66 +27997,13 @@ function createMockCore() {
 
 
 
-;// CONCATENATED MODULE: ./src/circle-lite.js
-// Minimal Circle IRIS client for attestation polling.
-// Only used for cross-chain deposits — no wallet/transaction commands.
-
-const IRIS_MAINNET = 'https://iris-api.circle.com'
-const IRIS_SANDBOX = 'https://iris-api-sandbox.circle.com'
-
-class CircleClient {
-  constructor({ sandbox = false } = {}) {
-    this.baseUrl = sandbox ? IRIS_SANDBOX : IRIS_MAINNET
-  }
-
-  async getAttestation(messageHash) {
-    const url = `${this.baseUrl}/v1/attestations/${messageHash}`
-    const resp = await fetch(url)
-    if (!resp.ok) {
-      throw new Error(`IRIS API error: ${resp.status} ${resp.statusText}`)
-    }
-    const data = await resp.json()
-    return {
-      messageHash,
-      status: data.status,
-      attestation: data.attestation || null,
-    }
-  }
-
-  async waitForAttestation(messageHash, { pollInterval = 5, maxAttempts = 60 } = {}) {
-    for (let i = 1; i <= maxAttempts; i++) {
-      const result = await this.getAttestation(messageHash)
-      if (result.status === 'complete') {
-        return { ...result, attempts: i }
-      }
-      if (i < maxAttempts) {
-        await new Promise((resolve) => setTimeout(resolve, pollInterval * 1000))
-      }
-    }
-    return {
-      messageHash,
-      status: 'pending_confirmations',
-      attestation: null,
-      attempts: maxAttempts,
-    }
-  }
-}
-
 ;// CONCATENATED MODULE: ./src/contracts.js
-// Contract addresses and ABIs for the W3 Vault system.
-//
-// The vault system lives on Base. When depositing from other chains,
-// CCTP bridges USDC to Base first, then deposits into the vault.
-
-// ── Environments ────────────────────────────────────────────────
-// Select with the `environment` input: "testing" (default) or "production".
+// Yelay vault contracts on Base.
 
 const ENVIRONMENTS = {
   testing: {
     name: 'testing',
-    operator: '0xd1b1afe415f0efb2d31c672d77cd5db810f5e02c',
     vault: '0x7b3D25c37c6ADf650F1f7696be2278cCFa2b638F',
-    tradfi: '0xDf1D457FFb5b2d65e33A1bb896E295bc323474ad',
     usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
     projectId: 30301,
     chainId: 8453,
@@ -28064,9 +28011,7 @@ const ENVIRONMENTS = {
   },
   production: {
     name: 'production',
-    operator: '0xd1b1afe415f0efb2d31c672d77cd5db810f5e02c',
     vault: '0x0c6dAf9B4e0EB49A0c80c325da82EC028Cb8118B',
-    tradfi: '0xDf1D457FFb5b2d65e33A1bb896E295bc323474ad',
     usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
     projectId: 30301,
     chainId: 8453,
@@ -28074,289 +28019,37 @@ const ENVIRONMENTS = {
   },
 }
 
-// ── USDC addresses per chain (for CCTP approval) ────────────────
-
-const USDC_ADDRESSES = {
-  ethereum: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-  avalanche: '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E',
-  arbitrum: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
-  optimism: '0x0b2c639c533813f4aa9d7837caf62653d097ff85',
-  polygon: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
-  base: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-}
-
-// ── CCTP contract addresses (mainnet, CREATE2 — same across EVM) ─
-
-const CCTP = {
-  tokenMessenger: '0x6b25532e1060ce10cc3b0a99e5683b91bfde6982',
-  messageTransmitter: '0x0a992d191deec32afe36203ad87d7d289a738f81',
-}
-
-// ── CCTP domain numbers ─────────────────────────────────────────
-
-const CCTP_DOMAINS = {
-  ethereum: 0,
-  avalanche: 1,
-  optimism: 2,
-  arbitrum: 3,
-  noble: 4,
-  solana: 5,
-  base: 6,
-  polygon: 7,
-}
-
-// ── Method signatures ───────────────────────────────────────────
-
 const METHODS = {
   // ERC20
   approve: 'function approve(address spender, uint256 amount) returns (bool)',
   balanceOf: 'function balanceOf(address account) returns (uint256)',
 
-  // CCTP TokenMessenger
-  depositForBurn:
-    'function depositForBurn(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient, address burnToken) returns (uint64 nonce)',
-
-  // CCTP MessageTransmitter
-  receiveMessage:
-    'function receiveMessage(bytes message, bytes attestation) returns (bool success)',
-
-  // W3YieldOperator
-  deposit: 'function deposit(string calldata poId, uint256 amount)',
-  depositFromBalance:
-    'function depositFromBalance(string calldata poId, uint256 amount)',
-  withdrawOldest: 'function withdrawOldest()',
-  withdrawAndRepay: 'function withdrawAndRepay(string calldata poId)',
-  totalDeposited: 'function totalDeposited() returns (uint256)',
-  activeDepositsCount: 'function activeDepositsCount() returns (uint256)',
-  canWithdraw: 'function canWithdraw() returns (bool)',
-  currentInterest: 'function currentInterest() returns (uint256)',
-  paginatedDeposits:
-    'function paginatedDeposits(uint256 from, uint256 to) returns (string[] poIds, uint256[] principals, uint256[] currentValues)',
-  depositQueueLength: 'function depositQueueLength() returns (uint256)',
-
-  // Yelay Vault
+  // Yelay vault
+  deposit: 'function deposit(uint256 assets, uint256 projectId, address receiver) returns (uint256 shares)',
+  redeem: 'function redeem(uint256 shares, uint256 projectId, address receiver) returns (uint256 assets)',
   convertToAssets: 'function convertToAssets(uint256 shares) returns (uint256)',
   convertToShares: 'function convertToShares(uint256 assets) returns (uint256)',
+  balanceOfShares: 'function balanceOf(address account, uint256 id) returns (uint256)',
+  underlyingAsset: 'function underlyingAsset() returns (address)',
 }
 
 ;// CONCATENATED MODULE: ./src/vault.js
-// Vault operations — deposit, withdraw, and status queries.
-//
-// All on-chain calls go through the W3 bridge via @w3-io/action-core.
-// The bridge handles signing — no private keys in the action.
+// Direct Yelay vault operations — deposit USDC, redeem shares, check balance.
+// No operator contract, no roles, no TradFi. Just ERC20 approve + vault.deposit.
 
 
 
 function resolveEnvironment(env) {
   const config = ENVIRONMENTS[env]
   if (!config) {
-    throw new Error(
-      `Unknown environment: "${env}". Available: ${Object.keys(ENVIRONMENTS).join(', ')}`,
-    )
+    throw new Error(`Unknown environment: "${env}". Available: ${Object.keys(ENVIRONMENTS).join(', ')}`)
   }
   return config
 }
 
-/** Build optional rpcUrl param if provided. */
 function rpcParam(opts) {
   return opts.rpcUrl ? { rpcUrl: opts.rpcUrl } : {}
 }
-
-async function deposit(bridge, opts) {
-  const { poId, amount, sourceChain, environment } = opts
-  const env = resolveEnvironment(environment)
-  const amountRaw = parseUsdcAmount(amount)
-
-  if (sourceChain === 'base') {
-    return depositDirect(bridge, env, poId, amountRaw, opts)
-  }
-  return depositCrossChain(bridge, opts.circle, env, poId, amountRaw, sourceChain, opts)
-}
-
-async function depositDirect(bridge, env, poId, amountRaw, opts) {
-  const result = await bridge.chain('ethereum', 'call-contract', {
-    contract: env.operator,
-    method: METHODS.deposit,
-    args: [poId, amountRaw],
-    ...rpcParam(opts),
-  }, env.network)
-
-  return {
-    type: 'direct',
-    chain: 'base',
-    poId,
-    amount: amountRaw,
-    operator: env.operator,
-    vault: env.vault,
-    txHash: result.txHash || result.transactionHash,
-  }
-}
-
-async function depositCrossChain(bridge, circle, env, poId, amountRaw, sourceChain) {
-  const sourceDomain = CCTP_DOMAINS[sourceChain]
-  if (sourceDomain === undefined) {
-    throw new Error(`Unsupported source chain: "${sourceChain}". Supported: ${Object.keys(CCTP_DOMAINS).join(', ')}`)
-  }
-  const sourceUsdc = USDC_ADDRESSES[sourceChain]
-  if (!sourceUsdc) throw new Error(`No USDC address for chain: "${sourceChain}"`)
-  if (!circle) throw new Error('Cross-chain deposits require a Circle client for attestation')
-
-  // 1. Approve USDC for TokenMessenger
-  await bridge.chain('ethereum', 'call-contract', {
-    contract: sourceUsdc,
-    method: METHODS.approve,
-    args: [CCTP.tokenMessenger, amountRaw],
-  }, sourceChain)
-
-  // 2. Burn USDC via CCTP
-  const recipientBytes32 = padAddressToBytes32(env.operator)
-  const burnResult = await bridge.chain('ethereum', 'call-contract', {
-    contract: CCTP.tokenMessenger,
-    method: METHODS.depositForBurn,
-    args: [amountRaw, CCTP_DOMAINS.base, recipientBytes32, sourceUsdc],
-  }, sourceChain)
-
-  // 3. Extract message hash from logs
-  const messageHash = extractMessageHash(burnResult)
-  if (!messageHash) throw new Error('Failed to extract message hash from CCTP burn receipt')
-
-  // 4. Wait for Circle attestation
-  const attestation = await circle.waitForAttestation(messageHash, {
-    pollInterval: 10,
-    maxAttempts: 60,
-  })
-  if (attestation.status !== 'complete') {
-    throw new Error(`Attestation timeout: status=${attestation.status}`)
-  }
-
-  // 5. Mint USDC on Base
-  const mintResult = await bridge.chain('ethereum', 'call-contract', {
-    contract: CCTP.messageTransmitter,
-    method: METHODS.receiveMessage,
-    args: [burnResult.messageBytes, attestation.attestation],
-  }, 'base')
-
-  // 6. Deposit into vault
-  const depositResult = await bridge.chain('ethereum', 'call-contract', {
-    contract: env.operator,
-    method: METHODS.depositFromBalance,
-    args: [poId, amountRaw],
-  }, env.network)
-
-  return {
-    type: 'cross-chain',
-    sourceChain,
-    poId,
-    amount: amountRaw,
-    operator: env.operator,
-    vault: env.vault,
-    burnTxHash: burnResult.txHash || burnResult.transactionHash,
-    messageHash,
-    attestationAttempts: attestation.attempts,
-    mintTxHash: mintResult.txHash || mintResult.transactionHash,
-    depositTxHash: depositResult.txHash || depositResult.transactionHash,
-  }
-}
-
-async function withdrawOldest(bridge, opts) {
-  const env = resolveEnvironment(opts.environment)
-  const result = await bridge.chain('ethereum', 'call-contract', {
-    contract: env.operator,
-    method: METHODS.withdrawOldest,
-    args: [],
-    ...rpcParam(opts),
-  }, env.network)
-
-  return {
-    operator: env.operator,
-    vault: env.vault,
-    txHash: result.txHash || result.transactionHash,
-  }
-}
-
-async function withdrawById(bridge, opts) {
-  const env = resolveEnvironment(opts.environment)
-  const result = await bridge.chain('ethereum', 'call-contract', {
-    contract: env.operator,
-    method: METHODS.withdrawAndRepay,
-    args: [opts.poId],
-    ...rpcParam(opts),
-  }, env.network)
-
-  return {
-    poId: opts.poId,
-    operator: env.operator,
-    vault: env.vault,
-    txHash: result.txHash || result.transactionHash,
-  }
-}
-
-async function vault_status(bridge, opts) {
-  const env = resolveEnvironment(opts.environment)
-  const read = (method) =>
-    bridge.chain('ethereum', 'read-contract', {
-      contract: env.operator,
-      method: method,
-      args: [],
-      ...rpcParam(opts),
-    }, env.network)
-
-  // currentInterest() reverts with arithmetic underflow when there are
-  // no active deposits — catch and default to "0".
-  const safeRead = (method) => read(method).catch(() => ({ result: '0' }))
-
-  const [totalDeposited, activeCount, canWithdrawResult, interest, queueLength] =
-    await Promise.all([
-      read(METHODS.totalDeposited),
-      read(METHODS.activeDepositsCount),
-      read(METHODS.canWithdraw),
-      safeRead(METHODS.currentInterest),
-      read(METHODS.depositQueueLength),
-    ])
-
-  return {
-    environment: env.name,
-    operator: env.operator,
-    vault: env.vault,
-    totalDeposited: formatUsdc(totalDeposited.result),
-    totalDepositedRaw: totalDeposited.result,
-    activeDeposits: Number(activeCount.result),
-    canWithdraw: Boolean(canWithdrawResult.result),
-    accruedInterest: formatUsdc(interest.result),
-    accruedInterestRaw: interest.result,
-    totalDepositsEver: Number(queueLength.result),
-  }
-}
-
-async function listDeposits(bridge, opts) {
-  const env = resolveEnvironment(opts.environment)
-  const result = await bridge.chain('ethereum', 'read-contract', {
-    contract: env.operator,
-    method: METHODS.paginatedDeposits,
-    args: [String(opts.from || 0), String(opts.to || 10)],
-    ...rpcParam(opts),
-  }, env.network)
-
-  const data = result.result || result
-  const poIds = data[0] || []
-  const principals = data[1] || []
-  const currentValues = data[2] || []
-
-  return {
-    environment: env.name,
-    from: opts.from || 0,
-    to: opts.to || 10,
-    deposits: poIds.map((poId, i) => ({
-      poId,
-      principal: formatUsdc(principals[i]),
-      principalRaw: principals[i],
-      currentValue: formatUsdc(currentValues[i]),
-      currentValueRaw: currentValues[i],
-    })),
-  }
-}
-
-// ── Helpers ─────────────────────────────────────────────────────
 
 function parseUsdcAmount(amount) {
   const parts = amount.split('.')
@@ -28372,21 +28065,94 @@ function formatUsdc(raw) {
   return `${whole}.${frac}`
 }
 
-function padAddressToBytes32(address) {
-  const clean = address.toLowerCase().replace('0x', '')
-  return '0x' + clean.padStart(64, '0')
+/**
+ * Deposit USDC into the Yelay vault.
+ * 1. Approve USDC for vault
+ * 2. Call vault.deposit(amount, projectId, receiver)
+ */
+async function deposit(bridge, opts) {
+  const env = resolveEnvironment(opts.environment)
+  const amountRaw = parseUsdcAmount(opts.amount)
+
+  // Step 1: Approve USDC for the vault
+  await bridge.chain('ethereum', 'call-contract', {
+    contract: env.usdc,
+    method: METHODS.approve,
+    args: [env.vault, amountRaw],
+    ...rpcParam(opts),
+  }, env.network)
+
+  // Step 2: Deposit into vault — shares go to the signer
+  const result = await bridge.chain('ethereum', 'call-contract', {
+    contract: env.vault,
+    method: METHODS.deposit,
+    args: [amountRaw, String(env.projectId), opts.receiver || '0x0000000000000000000000000000000000000000'],
+    ...rpcParam(opts),
+  }, env.network)
+
+  return {
+    vault: env.vault,
+    amount: amountRaw,
+    amountFormatted: opts.amount,
+    projectId: env.projectId,
+    receiver: opts.receiver || 'signer',
+    txHash: result.txHash || result.transactionHash || result.result,
+  }
 }
 
-const MESSAGE_SENT_TOPIC = '0x8c5261668696ce22758910d05bab8f186d6eb247ceac2af2e82c7dc17669b036'
+/**
+ * Redeem shares for USDC.
+ */
+async function redeem(bridge, opts) {
+  const env = resolveEnvironment(opts.environment)
 
-function extractMessageHash(burnResult) {
-  const logs = typeof burnResult.logs === 'string'
-    ? JSON.parse(burnResult.logs)
-    : burnResult.logs || []
-  for (const log of logs) {
-    if (log.topics?.[0] === MESSAGE_SENT_TOPIC) return log.data
+  const result = await bridge.chain('ethereum', 'call-contract', {
+    contract: env.vault,
+    method: METHODS.redeem,
+    args: [opts.shares, String(env.projectId), opts.receiver || '0x0000000000000000000000000000000000000000'],
+    ...rpcParam(opts),
+  }, env.network)
+
+  return {
+    vault: env.vault,
+    shares: opts.shares,
+    projectId: env.projectId,
+    txHash: result.txHash || result.transactionHash || result.result,
   }
-  return burnResult.messageHash || null
+}
+
+/**
+ * Get vault balance — USDC balance, share balance, and share value.
+ */
+async function vault_status(bridge, opts) {
+  const env = resolveEnvironment(opts.environment)
+
+  const read = (contract, method, args) =>
+    bridge.chain('ethereum', 'read-contract', {
+      contract,
+      method,
+      args: args || [],
+      ...rpcParam(opts),
+    }, env.network).catch(() => ({ result: '0' }))
+
+  const address = opts.address || '0x0000000000000000000000000000000000000000'
+
+  const [usdcBalance, shares, shareValue] = await Promise.all([
+    read(env.usdc, METHODS.balanceOf, [address]),
+    read(env.vault, METHODS.balanceOfShares, [address, String(env.projectId)]),
+    read(env.vault, METHODS.convertToAssets, ['1000000']),
+  ])
+
+  return {
+    environment: env.name,
+    vault: env.vault,
+    address,
+    usdcBalance: formatUsdc(usdcBalance.result),
+    usdcBalanceRaw: usdcBalance.result,
+    shares: shares.result,
+    shareValuePer1USDC: formatUsdc(shareValue.result),
+    projectId: env.projectId,
+  }
 }
 
 ;// CONCATENATED MODULE: ./src/index.js
@@ -28395,102 +28161,49 @@ function extractMessageHash(burnResult) {
 
 
 
-
-/** Read rpc-url input once — shared by all commands. */
 function getRpcUrl() {
   return lib_core.getInput('rpc-url') || undefined
 }
 
 const router = createCommandRouter({
   deposit: async () => {
-    const poId = lib_core.getInput('po-id', { required: true })
     const amount = lib_core.getInput('amount', { required: true })
-    const sourceChain = lib_core.getInput('source-chain') || 'base'
     const environment = lib_core.getInput('environment') || 'testing'
-    const rpcUrl = getRpcUrl()
-
-    let circle = null
-    if (sourceChain !== 'base') {
-      const sandbox = lib_core.getInput('sandbox') === 'true'
-      circle = new CircleClient({ sandbox })
-    }
-
-    const result = await deposit(bridge, {
-      poId,
-      amount,
-      sourceChain,
-      environment,
-      circle,
-      rpcUrl,
-    })
+    const receiver = lib_core.getInput('receiver') || undefined
+    const result = await deposit(bridge, { amount, environment, receiver, rpcUrl: getRpcUrl() })
     setJsonOutput('result', result)
-    writeSummary('deposit', result)
+    lib_core.summary
+      .addHeading('W3 Vault: deposit', 3)
+      .addRaw(`**Amount:** ${result.amountFormatted} USDC\n\n`)
+      .addRaw(`**Vault:** \`${result.vault}\`\n\n`)
+      .addRaw(`**TX:** \`${result.txHash}\`\n\n`)
+      .write()
   },
 
-  'withdraw-oldest': async () => {
+  redeem: async () => {
+    const shares = lib_core.getInput('shares', { required: true })
     const environment = lib_core.getInput('environment') || 'testing'
-    const result = await withdrawOldest(bridge, { environment, rpcUrl: getRpcUrl() })
+    const receiver = lib_core.getInput('receiver') || undefined
+    const result = await redeem(bridge, { shares, environment, receiver, rpcUrl: getRpcUrl() })
     setJsonOutput('result', result)
-    writeSummary('withdraw-oldest', result)
-  },
-
-  'withdraw-by-id': async () => {
-    const poId = lib_core.getInput('po-id', { required: true })
-    const environment = lib_core.getInput('environment') || 'testing'
-    const result = await withdrawById(bridge, { poId, environment, rpcUrl: getRpcUrl() })
-    setJsonOutput('result', result)
-    writeSummary('withdraw-by-id', result)
+    lib_core.summary
+      .addHeading('W3 Vault: redeem', 3)
+      .addCodeBlock(JSON.stringify(result, null, 2), 'json')
+      .write()
   },
 
   status: async () => {
     const environment = lib_core.getInput('environment') || 'testing'
-    const result = await vault_status(bridge, { environment, rpcUrl: getRpcUrl() })
+    const address = lib_core.getInput('address') || undefined
+    const result = await vault_status(bridge, { environment, address, rpcUrl: getRpcUrl() })
     setJsonOutput('result', result)
-    writeSummary('status', result)
-  },
-
-  'list-deposits': async () => {
-    const environment = lib_core.getInput('environment') || 'testing'
-    const from = Number(lib_core.getInput('from') || '0')
-    const to = Number(lib_core.getInput('to') || '10')
-    const result = await listDeposits(bridge, { environment, from, to, rpcUrl: getRpcUrl() })
-    setJsonOutput('result', result)
-    writeSummary('list-deposits', result)
+    lib_core.summary
+      .addHeading('W3 Vault: status', 3)
+      .addRaw(`**USDC Balance:** ${result.usdcBalance}\n\n`)
+      .addRaw(`**Shares:** ${result.shares}\n\n`)
+      .write()
   },
 })
 
 router()
-
-function writeSummary(command, result) {
-  try {
-    if (command === 'status') {
-      lib_core.summary
-        .addHeading(`W3 Vault: ${command}`, 3)
-        .addRaw(`**Environment:** ${result.environment}\n\n`)
-        .addRaw(`**Total deposited:** ${result.totalDeposited} USDC\n\n`)
-        .addRaw(`**Active deposits:** ${result.activeDeposits}\n\n`)
-        .addRaw(`**Accrued interest:** ${result.accruedInterest} USDC\n\n`)
-        .write()
-    } else if (command === 'deposit') {
-      const s = lib_core.summary
-        .addHeading(`W3 Vault: ${command}`, 3)
-        .addRaw(`**Type:** ${result.type}\n\n`)
-        .addRaw(`**PO ID:** ${result.poId}\n\n`)
-        .addRaw(`**Amount:** ${result.amount}\n\n`)
-      if (result.type === 'cross-chain') {
-        s.addRaw(`**Source:** ${result.sourceChain}\n\n`)
-          .addRaw(`**Burn TX:** \`${result.burnTxHash}\`\n\n`)
-          .addRaw(`**Mint TX:** \`${result.mintTxHash}\`\n\n`)
-      }
-      s.addRaw(`**Deposit TX:** \`${result.depositTxHash || result.txHash}\`\n\n`).write()
-    } else {
-      lib_core.summary
-        .addHeading(`W3 Vault: ${command}`, 3)
-        .addCodeBlock(JSON.stringify(result, null, 2), 'json')
-        .write()
-    }
-  } catch {
-    // Summary is best-effort
-  }
-}
 

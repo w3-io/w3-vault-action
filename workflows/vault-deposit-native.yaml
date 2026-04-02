@@ -1,0 +1,69 @@
+name: vault-deposit-native
+
+on:
+  workflow_dispatch:
+    inputs:
+      amount:
+        description: "USDC amount in raw units (6 decimals, e.g. 100000000 = $100)"
+        required: true
+        type: string
+      po_id:
+        description: "Purchase order ID"
+        required: true
+        type: string
+
+jobs:
+  # ── Read vault state ───────────────────────────────────────────
+  pre-check:
+    runs-on: ubuntu-latest
+    outputs:
+      active: ${{ steps.active.outputs.result }}
+      total: ${{ steps.total.outputs.result }}
+    steps:
+      - name: Active deposits
+        id: active
+        uses: w3-io/w3-vault-action@v0
+        with:
+          command: status
+          environment: testing
+          rpc-url: "https://base-mainnet.g.alchemy.com/v2/0L3k1EjL5mpti6pqRUi1y"
+        bridge-allow:
+          - "ethereum"
+
+  # ── Deposit into vault ─────────────────────────────────────────
+  deposit:
+    needs: pre-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deposit USDC into Yelay vault
+        id: deposit
+        ethereum:
+          network: base
+          signer: "0xae8790b779229f4ef574991e704029242981e144251080518cc7ffd5be64d535"
+          write:
+            call-contract:
+              contract: "0xd1b1afe415f0efb2d31c672d77cd5db810f5e02c"
+              method: "function deposit(string calldata poId, uint256 amount)"
+              args: '["${{ inputs.po_id }}", "${{ inputs.amount }}"]'
+              rpcUrl: "https://base-mainnet.g.alchemy.com/v2/0L3k1EjL5mpti6pqRUi1y"
+
+  # ── Verify deposit ─────────────────────────────────────────────
+  post-check:
+    needs: [pre-check, deposit]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vault status after
+        id: status
+        uses: w3-io/w3-vault-action@v0
+        with:
+          command: status
+          environment: testing
+          rpc-url: "https://base-mainnet.g.alchemy.com/v2/0L3k1EjL5mpti6pqRUi1y"
+        bridge-allow:
+          - "ethereum"
+
+      - name: Report
+        run: |
+          echo "Deposit complete"
+          echo "Before: ${{ needs.pre-check.outputs.active }}"
+          echo "After: ${{ steps.status.outputs.result }}"

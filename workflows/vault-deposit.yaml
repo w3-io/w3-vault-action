@@ -1,39 +1,77 @@
-name: vault-status
+name: vault-deposit-v1
 
 on:
   workflow_dispatch:
     inputs:
+      amount:
+        description: "USDC amount (e.g. 100000.00)"
+        required: true
+        type: string
       po_id:
         description: "Purchase order ID"
         required: true
         type: string
+      source_chain:
+        description: "Chain where USDC is held (base, avalanche, ethereum, arbitrum)"
+        required: false
+        type: string
+        default: "base"
 
 jobs:
-  status:
+  # ── Check vault state before deposit ───────────────────────────
+  pre-check:
     runs-on: ubuntu-latest
     outputs:
-      total: ${{ steps.total.outputs.result }}
-      active: ${{ steps.active.outputs.result }}
+      status: ${{ steps.status.outputs.result }}
     steps:
-      - name: Read total deposited
-        id: total
-        ethereum:
-          network: base
-          read:
-            read-contract:
-              contract: "0xd1b1afe415f0efb2d31c672d77cd5db810f5e02c"
-              method: "function totalDeposited() returns (uint256)"
+      - name: Vault status
+        id: status
+        uses: w3-io/w3-vault-action@v0
+        with:
+          command: status
+          environment: testing
+          rpc-url: "https://base-mainnet.g.alchemy.com/v2/0L3k1EjL5mpti6pqRUi1y"
+        bridge-allow:
+          - "ethereum/*"
 
-      - name: Read active deposits count
-        id: active
-        ethereum:
-          network: base
-          read:
-            read-contract:
-              contract: "0xd1b1afe415f0efb2d31c672d77cd5db810f5e02c"
-              method: "function activeDepositsCount() returns (uint256)"
+  # ── Execute deposit ────────────────────────────────────────────
+  deposit:
+    needs: pre-check
+    runs-on: ubuntu-latest
+    outputs:
+      result: ${{ steps.deposit.outputs.result }}
+    steps:
+      - name: Deposit USDC into vault
+        id: deposit
+        uses: w3-io/w3-vault-action@v0
+        with:
+          command: deposit
+          po-id: ${{ inputs.po_id }}
+          amount: ${{ inputs.amount }}
+          source-chain: ${{ inputs.source_chain }}
+          environment: testing
+          rpc-url: "https://base-mainnet.g.alchemy.com/v2/0L3k1EjL5mpti6pqRUi1y"
+        bridge-allow:
+          - "ethereum/*"
+
+  # ── Verify deposit ─────────────────────────────────────────────
+  post-check:
+    needs: [pre-check, deposit]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vault status after deposit
+        id: status
+        uses: w3-io/w3-vault-action@v0
+        with:
+          command: status
+          environment: testing
+          rpc-url: "https://base-mainnet.g.alchemy.com/v2/0L3k1EjL5mpti6pqRUi1y"
+        bridge-allow:
+          - "ethereum/*"
 
       - name: Report
         run: |
-          echo "Total deposited (raw): ${{ steps.total.outputs.result }}"
-          echo "Active deposits: ${{ steps.active.outputs.result }}"
+          echo "Deposit complete"
+          echo "Pre: ${{ needs.pre-check.outputs.status }}"
+          echo "Deposit: ${{ needs.deposit.outputs.result }}"
+          echo "Post: ${{ steps.status.outputs.result }}"

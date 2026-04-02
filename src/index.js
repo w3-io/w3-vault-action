@@ -1,103 +1,50 @@
-import { createCommandRouter, setJsonOutput, handleError } from '@w3-io/action-core'
+import { createCommandRouter, setJsonOutput } from '@w3-io/action-core'
 import { bridge } from '@w3-io/action-core'
 import * as core from '@actions/core'
-import { CircleClient } from './circle-lite.js'
-import { deposit, withdrawOldest, withdrawById, status, listDeposits } from './vault.js'
+import { deposit, redeem, status } from './vault.js'
 
-/** Read rpc-url input once — shared by all commands. */
 function getRpcUrl() {
   return core.getInput('rpc-url') || undefined
 }
 
 const router = createCommandRouter({
   deposit: async () => {
-    const poId = core.getInput('po-id', { required: true })
     const amount = core.getInput('amount', { required: true })
-    const sourceChain = core.getInput('source-chain') || 'base'
     const environment = core.getInput('environment') || 'testing'
-    const rpcUrl = getRpcUrl()
-
-    let circle = null
-    if (sourceChain !== 'base') {
-      const sandbox = core.getInput('sandbox') === 'true'
-      circle = new CircleClient({ sandbox })
-    }
-
-    const result = await deposit(bridge, {
-      poId,
-      amount,
-      sourceChain,
-      environment,
-      circle,
-      rpcUrl,
-    })
+    const receiver = core.getInput('receiver') || undefined
+    const result = await deposit(bridge, { amount, environment, receiver, rpcUrl: getRpcUrl() })
     setJsonOutput('result', result)
-    writeSummary('deposit', result)
+    core.summary
+      .addHeading('W3 Vault: deposit', 3)
+      .addRaw(`**Amount:** ${result.amountFormatted} USDC\n\n`)
+      .addRaw(`**Vault:** \`${result.vault}\`\n\n`)
+      .addRaw(`**TX:** \`${result.txHash}\`\n\n`)
+      .write()
   },
 
-  'withdraw-oldest': async () => {
+  redeem: async () => {
+    const shares = core.getInput('shares', { required: true })
     const environment = core.getInput('environment') || 'testing'
-    const result = await withdrawOldest(bridge, { environment, rpcUrl: getRpcUrl() })
+    const receiver = core.getInput('receiver') || undefined
+    const result = await redeem(bridge, { shares, environment, receiver, rpcUrl: getRpcUrl() })
     setJsonOutput('result', result)
-    writeSummary('withdraw-oldest', result)
-  },
-
-  'withdraw-by-id': async () => {
-    const poId = core.getInput('po-id', { required: true })
-    const environment = core.getInput('environment') || 'testing'
-    const result = await withdrawById(bridge, { poId, environment, rpcUrl: getRpcUrl() })
-    setJsonOutput('result', result)
-    writeSummary('withdraw-by-id', result)
+    core.summary
+      .addHeading('W3 Vault: redeem', 3)
+      .addCodeBlock(JSON.stringify(result, null, 2), 'json')
+      .write()
   },
 
   status: async () => {
     const environment = core.getInput('environment') || 'testing'
-    const result = await status(bridge, { environment, rpcUrl: getRpcUrl() })
+    const address = core.getInput('address') || undefined
+    const result = await status(bridge, { environment, address, rpcUrl: getRpcUrl() })
     setJsonOutput('result', result)
-    writeSummary('status', result)
-  },
-
-  'list-deposits': async () => {
-    const environment = core.getInput('environment') || 'testing'
-    const from = Number(core.getInput('from') || '0')
-    const to = Number(core.getInput('to') || '10')
-    const result = await listDeposits(bridge, { environment, from, to, rpcUrl: getRpcUrl() })
-    setJsonOutput('result', result)
-    writeSummary('list-deposits', result)
+    core.summary
+      .addHeading('W3 Vault: status', 3)
+      .addRaw(`**USDC Balance:** ${result.usdcBalance}\n\n`)
+      .addRaw(`**Shares:** ${result.shares}\n\n`)
+      .write()
   },
 })
 
 router()
-
-function writeSummary(command, result) {
-  try {
-    if (command === 'status') {
-      core.summary
-        .addHeading(`W3 Vault: ${command}`, 3)
-        .addRaw(`**Environment:** ${result.environment}\n\n`)
-        .addRaw(`**Total deposited:** ${result.totalDeposited} USDC\n\n`)
-        .addRaw(`**Active deposits:** ${result.activeDeposits}\n\n`)
-        .addRaw(`**Accrued interest:** ${result.accruedInterest} USDC\n\n`)
-        .write()
-    } else if (command === 'deposit') {
-      const s = core.summary
-        .addHeading(`W3 Vault: ${command}`, 3)
-        .addRaw(`**Type:** ${result.type}\n\n`)
-        .addRaw(`**PO ID:** ${result.poId}\n\n`)
-        .addRaw(`**Amount:** ${result.amount}\n\n`)
-      if (result.type === 'cross-chain') {
-        s.addRaw(`**Source:** ${result.sourceChain}\n\n`)
-          .addRaw(`**Burn TX:** \`${result.burnTxHash}\`\n\n`)
-          .addRaw(`**Mint TX:** \`${result.mintTxHash}\`\n\n`)
-      }
-      s.addRaw(`**Deposit TX:** \`${result.depositTxHash || result.txHash}\`\n\n`).write()
-    } else {
-      core.summary
-        .addHeading(`W3 Vault: ${command}`, 3)
-        .addCodeBlock(JSON.stringify(result, null, 2), 'json')
-        .write()
-    }
-  } catch {
-    // Summary is best-effort
-  }
-}

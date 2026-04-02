@@ -1,0 +1,48 @@
+name: vault-deposit-live
+
+on:
+  workflow_dispatch:
+    inputs:
+      amount:
+        description: "USDC amount (e.g. 100.00)"
+        required: true
+        type: string
+      po_id:
+        description: "Purchase order ID"
+        required: true
+        type: string
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    environment: 0x031f8576680353f131355c2169ebae5c661710bbf3a985bbadf4f5882969bf23
+    outputs:
+      status: ${{ steps.status.outputs.result }}
+    steps:
+      - name: Vault status
+        id: status
+        uses: w3-io/w3-vault-action@v0
+        with:
+          command: status
+          environment: testing
+          rpc-url: ${{ secrets.BASE_RPC_URL }}
+        bridge-allow:
+          - "ethereum"
+
+  deposit:
+    needs: check
+    runs-on: ubuntu-latest
+    environment: 0x031f8576680353f131355c2169ebae5c661710bbf3a985bbadf4f5882969bf23
+    steps:
+      - name: Deposit USDC
+        id: deposit
+        uses: w3-io/w3-vault-action@v0
+        with:
+          command: deposit
+          po-id: ${{ inputs.po_id }}
+          amount: ${{ inputs.amount }}
+          source-chain: base
+          environment: testing
+          rpc-url: ${{ secrets.BASE_RPC_URL }}
+        bridge-allow:
+          - "ethereum"
