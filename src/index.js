@@ -4,12 +4,18 @@ import * as core from '@actions/core'
 import { CircleClient } from './circle-lite.js'
 import { deposit, withdrawOldest, withdrawById, status, listDeposits } from './vault.js'
 
+/** Read rpc-url input once — shared by all commands. */
+function getRpcUrl() {
+  return core.getInput('rpc-url') || undefined
+}
+
 const router = createCommandRouter({
   deposit: async () => {
     const poId = core.getInput('po-id', { required: true })
     const amount = core.getInput('amount', { required: true })
     const sourceChain = core.getInput('source-chain') || 'base'
     const environment = core.getInput('environment') || 'testing'
+    const rpcUrl = getRpcUrl()
 
     let circle = null
     if (sourceChain !== 'base') {
@@ -23,6 +29,7 @@ const router = createCommandRouter({
       sourceChain,
       environment,
       circle,
+      rpcUrl,
     })
     setJsonOutput('result', result)
     writeSummary('deposit', result)
@@ -30,7 +37,7 @@ const router = createCommandRouter({
 
   'withdraw-oldest': async () => {
     const environment = core.getInput('environment') || 'testing'
-    const result = await withdrawOldest(bridge, { environment })
+    const result = await withdrawOldest(bridge, { environment, rpcUrl: getRpcUrl() })
     setJsonOutput('result', result)
     writeSummary('withdraw-oldest', result)
   },
@@ -38,15 +45,14 @@ const router = createCommandRouter({
   'withdraw-by-id': async () => {
     const poId = core.getInput('po-id', { required: true })
     const environment = core.getInput('environment') || 'testing'
-    const result = await withdrawById(bridge, { poId, environment })
+    const result = await withdrawById(bridge, { poId, environment, rpcUrl: getRpcUrl() })
     setJsonOutput('result', result)
     writeSummary('withdraw-by-id', result)
   },
 
   status: async () => {
     const environment = core.getInput('environment') || 'testing'
-    const rpcUrl = core.getInput('rpc-url') || undefined
-    const result = await status(bridge, { environment, rpcUrl })
+    const result = await status(bridge, { environment, rpcUrl: getRpcUrl() })
     setJsonOutput('result', result)
     writeSummary('status', result)
   },
@@ -55,7 +61,7 @@ const router = createCommandRouter({
     const environment = core.getInput('environment') || 'testing'
     const from = Number(core.getInput('from') || '0')
     const to = Number(core.getInput('to') || '10')
-    const result = await listDeposits(bridge, { environment, from, to })
+    const result = await listDeposits(bridge, { environment, from, to, rpcUrl: getRpcUrl() })
     setJsonOutput('result', result)
     writeSummary('list-deposits', result)
   },

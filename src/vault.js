@@ -15,22 +15,28 @@ export function resolveEnvironment(env) {
   return config
 }
 
+/** Build optional rpcUrl param if provided. */
+function rpcParam(opts) {
+  return opts.rpcUrl ? { rpcUrl: opts.rpcUrl } : {}
+}
+
 export async function deposit(bridge, opts) {
   const { poId, amount, sourceChain, environment } = opts
   const env = resolveEnvironment(environment)
   const amountRaw = parseUsdcAmount(amount)
 
   if (sourceChain === 'base') {
-    return depositDirect(bridge, env, poId, amountRaw)
+    return depositDirect(bridge, env, poId, amountRaw, opts)
   }
-  return depositCrossChain(bridge, opts.circle, env, poId, amountRaw, sourceChain)
+  return depositCrossChain(bridge, opts.circle, env, poId, amountRaw, sourceChain, opts)
 }
 
-async function depositDirect(bridge, env, poId, amountRaw) {
+async function depositDirect(bridge, env, poId, amountRaw, opts) {
   const result = await bridge.chain('ethereum', 'call-contract', {
     contract: env.operator,
     method: METHODS.deposit,
     args: [poId, amountRaw],
+    ...rpcParam(opts),
   }, env.network)
 
   return {
@@ -116,6 +122,7 @@ export async function withdrawOldest(bridge, opts) {
     contract: env.operator,
     method: METHODS.withdrawOldest,
     args: [],
+    ...rpcParam(opts),
   }, env.network)
 
   return {
@@ -131,6 +138,7 @@ export async function withdrawById(bridge, opts) {
     contract: env.operator,
     method: METHODS.withdrawAndRepay,
     args: [opts.poId],
+    ...rpcParam(opts),
   }, env.network)
 
   return {
@@ -148,15 +156,19 @@ export async function status(bridge, opts) {
       contract: env.operator,
       method: method,
       args: [],
-      ...(opts.rpcUrl ? { rpcUrl: opts.rpcUrl } : {}),
+      ...rpcParam(opts),
     }, env.network)
+
+  // currentInterest() reverts with arithmetic underflow when there are
+  // no active deposits — catch and default to "0".
+  const safeRead = (method) => read(method).catch(() => ({ result: '0' }))
 
   const [totalDeposited, activeCount, canWithdrawResult, interest, queueLength] =
     await Promise.all([
       read(METHODS.totalDeposited),
       read(METHODS.activeDepositsCount),
       read(METHODS.canWithdraw),
-      read(METHODS.currentInterest),
+      safeRead(METHODS.currentInterest),
       read(METHODS.depositQueueLength),
     ])
 
@@ -180,6 +192,7 @@ export async function listDeposits(bridge, opts) {
     contract: env.operator,
     method: METHODS.paginatedDeposits,
     args: [String(opts.from || 0), String(opts.to || 10)],
+    ...rpcParam(opts),
   }, env.network)
 
   const data = result.result || result

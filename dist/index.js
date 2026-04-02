@@ -28157,22 +28157,28 @@ function resolveEnvironment(env) {
   return config
 }
 
+/** Build optional rpcUrl param if provided. */
+function rpcParam(opts) {
+  return opts.rpcUrl ? { rpcUrl: opts.rpcUrl } : {}
+}
+
 async function deposit(bridge, opts) {
   const { poId, amount, sourceChain, environment } = opts
   const env = resolveEnvironment(environment)
   const amountRaw = parseUsdcAmount(amount)
 
   if (sourceChain === 'base') {
-    return depositDirect(bridge, env, poId, amountRaw)
+    return depositDirect(bridge, env, poId, amountRaw, opts)
   }
-  return depositCrossChain(bridge, opts.circle, env, poId, amountRaw, sourceChain)
+  return depositCrossChain(bridge, opts.circle, env, poId, amountRaw, sourceChain, opts)
 }
 
-async function depositDirect(bridge, env, poId, amountRaw) {
+async function depositDirect(bridge, env, poId, amountRaw, opts) {
   const result = await bridge.chain('ethereum', 'call-contract', {
     contract: env.operator,
     method: METHODS.deposit,
     args: [poId, amountRaw],
+    ...rpcParam(opts),
   }, env.network)
 
   return {
@@ -28258,6 +28264,7 @@ async function withdrawOldest(bridge, opts) {
     contract: env.operator,
     method: METHODS.withdrawOldest,
     args: [],
+    ...rpcParam(opts),
   }, env.network)
 
   return {
@@ -28273,6 +28280,7 @@ async function withdrawById(bridge, opts) {
     contract: env.operator,
     method: METHODS.withdrawAndRepay,
     args: [opts.poId],
+    ...rpcParam(opts),
   }, env.network)
 
   return {
@@ -28290,15 +28298,19 @@ async function vault_status(bridge, opts) {
       contract: env.operator,
       method: method,
       args: [],
-      ...(opts.rpcUrl ? { rpcUrl: opts.rpcUrl } : {}),
+      ...rpcParam(opts),
     }, env.network)
+
+  // currentInterest() reverts with arithmetic underflow when there are
+  // no active deposits — catch and default to "0".
+  const safeRead = (method) => read(method).catch(() => ({ result: '0' }))
 
   const [totalDeposited, activeCount, canWithdrawResult, interest, queueLength] =
     await Promise.all([
       read(METHODS.totalDeposited),
       read(METHODS.activeDepositsCount),
       read(METHODS.canWithdraw),
-      read(METHODS.currentInterest),
+      safeRead(METHODS.currentInterest),
       read(METHODS.depositQueueLength),
     ])
 
@@ -28322,6 +28334,7 @@ async function listDeposits(bridge, opts) {
     contract: env.operator,
     method: METHODS.paginatedDeposits,
     args: [String(opts.from || 0), String(opts.to || 10)],
+    ...rpcParam(opts),
   }, env.network)
 
   const data = result.result || result
@@ -28383,12 +28396,18 @@ function extractMessageHash(burnResult) {
 
 
 
+/** Read rpc-url input once — shared by all commands. */
+function getRpcUrl() {
+  return lib_core.getInput('rpc-url') || undefined
+}
+
 const router = createCommandRouter({
   deposit: async () => {
     const poId = lib_core.getInput('po-id', { required: true })
     const amount = lib_core.getInput('amount', { required: true })
     const sourceChain = lib_core.getInput('source-chain') || 'base'
     const environment = lib_core.getInput('environment') || 'testing'
+    const rpcUrl = getRpcUrl()
 
     let circle = null
     if (sourceChain !== 'base') {
@@ -28402,6 +28421,7 @@ const router = createCommandRouter({
       sourceChain,
       environment,
       circle,
+      rpcUrl,
     })
     setJsonOutput('result', result)
     writeSummary('deposit', result)
@@ -28409,7 +28429,7 @@ const router = createCommandRouter({
 
   'withdraw-oldest': async () => {
     const environment = lib_core.getInput('environment') || 'testing'
-    const result = await withdrawOldest(bridge, { environment })
+    const result = await withdrawOldest(bridge, { environment, rpcUrl: getRpcUrl() })
     setJsonOutput('result', result)
     writeSummary('withdraw-oldest', result)
   },
@@ -28417,15 +28437,14 @@ const router = createCommandRouter({
   'withdraw-by-id': async () => {
     const poId = lib_core.getInput('po-id', { required: true })
     const environment = lib_core.getInput('environment') || 'testing'
-    const result = await withdrawById(bridge, { poId, environment })
+    const result = await withdrawById(bridge, { poId, environment, rpcUrl: getRpcUrl() })
     setJsonOutput('result', result)
     writeSummary('withdraw-by-id', result)
   },
 
   status: async () => {
     const environment = lib_core.getInput('environment') || 'testing'
-    const rpcUrl = lib_core.getInput('rpc-url') || undefined
-    const result = await vault_status(bridge, { environment, rpcUrl })
+    const result = await vault_status(bridge, { environment, rpcUrl: getRpcUrl() })
     setJsonOutput('result', result)
     writeSummary('status', result)
   },
@@ -28434,7 +28453,7 @@ const router = createCommandRouter({
     const environment = lib_core.getInput('environment') || 'testing'
     const from = Number(lib_core.getInput('from') || '0')
     const to = Number(lib_core.getInput('to') || '10')
-    const result = await listDeposits(bridge, { environment, from, to })
+    const result = await listDeposits(bridge, { environment, from, to, rpcUrl: getRpcUrl() })
     setJsonOutput('result', result)
     writeSummary('list-deposits', result)
   },
