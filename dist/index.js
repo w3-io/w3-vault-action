@@ -28035,7 +28035,10 @@ async function redeem(bridge, opts) {
     vault: env.vault,
     shares: opts.shares,
     projectId: env.projectId,
-    txHash: result.txHash || result.transactionHash || result.result,
+    txHash: result.txHash,
+    status: result.status,
+    gasUsed: result.gasUsed,
+    bridgeKeys: Object.keys(result).join(','),
   }
 }
 
