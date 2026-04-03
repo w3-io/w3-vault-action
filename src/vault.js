@@ -46,7 +46,8 @@ export async function deposit(bridge, opts) {
     ...rpcParam(opts),
   }, env.network)
 
-  // Step 2: Deposit into vault — shares go to the signer
+  // Step 2: Deposit into vault — shares go to the signer.
+  // Gas is estimated by the protocol with a 1.3x safety multiplier.
   const result = await bridge.chain('ethereum', 'call-contract', {
     contract: env.vault,
     method: METHODS.deposit,
@@ -70,6 +71,7 @@ export async function deposit(bridge, opts) {
 export async function redeem(bridge, opts) {
   const env = resolveEnvironment(opts.environment)
 
+  // Gas is estimated by the protocol with a 1.3x safety multiplier.
   const result = await bridge.chain('ethereum', 'call-contract', {
     contract: env.vault,
     method: METHODS.redeem,
