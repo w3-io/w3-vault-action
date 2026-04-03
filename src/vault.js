@@ -51,8 +51,13 @@ export async function deposit(bridge, opts) {
     contract: env.vault,
     method: METHODS.deposit,
     args: [amountRaw, String(env.projectId), opts.receiver || '0x0000000000000000000000000000000000000000'],
+    gasLimit: '5000000',
     ...rpcParam(opts),
   }, env.network)
+
+  if (result.error) {
+    throw new Error(`Deposit failed: ${result.error}`)
+  }
 
   return {
     vault: env.vault,
@@ -60,7 +65,7 @@ export async function deposit(bridge, opts) {
     amountFormatted: opts.amount,
     projectId: env.projectId,
     receiver: opts.receiver || 'signer',
-    txHash: result.txHash || result.transactionHash || result.result,
+    txHash: result.txHash,
   }
 }
 
@@ -74,19 +79,19 @@ export async function redeem(bridge, opts) {
     contract: env.vault,
     method: METHODS.redeem,
     args: [opts.shares, String(env.projectId), opts.receiver || '0x0000000000000000000000000000000000000000'],
+    gasLimit: '5000000',
     ...rpcParam(opts),
   }, env.network)
+
+  if (result.error) {
+    throw new Error(`Redeem failed: ${result.error}`)
+  }
 
   return {
     vault: env.vault,
     shares: opts.shares,
     projectId: env.projectId,
     txHash: result.txHash,
-    status: result.status,
-    gasUsed: result.gasUsed,
-    bridgeKeys: Object.keys(result).join(','),
-    bridgeError: result.error,
-    bridgeCode: result.code,
   }
 }
 
