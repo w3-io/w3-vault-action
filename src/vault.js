@@ -85,6 +85,8 @@ export async function redeem(bridge, opts) {
     status: result.status,
     gasUsed: result.gasUsed,
     bridgeKeys: Object.keys(result).join(','),
+    bridgeError: result.error,
+    bridgeCode: result.code,
   }
 }
 
