@@ -1,0 +1,40 @@
+name: cctp-base-to-eth-v3
+
+on:
+  workflow_dispatch:
+    inputs:
+      amount_raw:
+        description: "USDC raw amount (6 decimals, e.g. 2000000 = 2 USDC)"
+        required: true
+        type: string
+
+jobs:
+  burn:
+    runs-on: ubuntu-latest
+    environment: 0x031f8576680353f131355c2169ebae5c661710bbf3a985bbadf4f5882969bf23
+    outputs:
+      result: ${{ steps.burn.outputs.result }}
+    steps:
+      - name: Approve USDC for TokenMessenger
+        id: approve
+        ethereum:
+          network: base
+          signer: ${{ secrets.W3_SECRET_ETHEREUM }}
+          write:
+            call-contract:
+              contract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+              method: "function approve(address,uint256) returns (bool)"
+              args: '["0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d", "${{ inputs.amount_raw }}"]'
+              rpcUrl: ${{ secrets.BASE_RPC_URL }}
+
+      - name: Burn USDC via CCTP
+        id: burn
+        ethereum:
+          network: base
+          signer: ${{ secrets.W3_SECRET_ETHEREUM }}
+          write:
+            call-contract:
+              contract: "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"
+              method: "function depositForBurn(uint256,uint32,bytes32,address) returns (uint64)"
+              args: '["${{ inputs.amount_raw }}", "0", "0x000000000000000000000000A6F7A79E156A35186C5ADBb699C0Fd47f16D8A29", "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"]'
+              rpcUrl: ${{ secrets.BASE_RPC_URL }}

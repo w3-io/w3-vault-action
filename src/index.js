@@ -1,4 +1,4 @@
-import { createCommandRouter, setJsonOutput } from '@w3-io/action-core'
+import { createCommandRouter, setJsonOutput, writeSummary } from '@w3-io/action-core'
 import { bridge } from '@w3-io/action-core'
 import * as core from '@actions/core'
 import { deposit, redeem, status } from './vault.js'
@@ -14,12 +14,11 @@ const router = createCommandRouter({
     const receiver = core.getInput('receiver') || undefined
     const result = await deposit(bridge, { amount, environment, receiver, rpcUrl: getRpcUrl() })
     setJsonOutput('result', result)
-    core.summary
-      .addHeading('W3 Vault: deposit', 3)
-      .addRaw(`**Amount:** ${result.amountFormatted} USDC\n\n`)
-      .addRaw(`**Vault:** \`${result.vault}\`\n\n`)
-      .addRaw(`**TX:** \`${result.txHash}\`\n\n`)
-      .write()
+    await writeSummary('W3 Vault: deposit', [
+      ['Amount', `${result.amountFormatted} USDC`],
+      ['Vault', `\`${result.vault}\``],
+      ['TX', `\`${result.txHash}\``],
+    ])
   },
 
   redeem: async () => {
@@ -28,10 +27,7 @@ const router = createCommandRouter({
     const receiver = core.getInput('receiver') || undefined
     const result = await redeem(bridge, { shares, environment, receiver, rpcUrl: getRpcUrl() })
     setJsonOutput('result', result)
-    core.summary
-      .addHeading('W3 Vault: redeem', 3)
-      .addCodeBlock(JSON.stringify(result, null, 2), 'json')
-      .write()
+    await writeSummary('W3 Vault: redeem', result)
   },
 
   status: async () => {
@@ -39,11 +35,10 @@ const router = createCommandRouter({
     const address = core.getInput('address') || undefined
     const result = await status(bridge, { environment, address, rpcUrl: getRpcUrl() })
     setJsonOutput('result', result)
-    core.summary
-      .addHeading('W3 Vault: status', 3)
-      .addRaw(`**USDC Balance:** ${result.usdcBalance}\n\n`)
-      .addRaw(`**Shares:** ${result.shares}\n\n`)
-      .write()
+    await writeSummary('W3 Vault: status', [
+      ['USDC Balance', result.usdcBalance],
+      ['Shares', result.shares],
+    ])
   },
 })
 

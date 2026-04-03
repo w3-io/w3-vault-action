@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@actions/core": "^1.11.1",
-    "@w3-io/action-core": "^0.3.0"
+    "@w3-io/action-core": "^0.4.0"
   },
   "devDependencies": {
     "@vercel/ncc": "^0.38.0",

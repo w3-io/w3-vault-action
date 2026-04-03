@@ -1,4 +1,4 @@
-name: vault-demo-v3
+name: vault-demo-v5
 
 on:
   workflow_dispatch:
@@ -15,7 +15,7 @@ jobs:
     steps:
       - name: Deposit USDC into Yelay vault
         id: deposit
-        uses: w3-io/w3-vault-action@v0
+        uses: w3-io/w3-vault-action@v0.2
         env:
           W3_SECRET_ETHEREUM: ${{ secrets.W3_SECRET_ETHEREUM }}
         with:
