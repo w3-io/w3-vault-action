@@ -1,12 +1,13 @@
 // Direct Yelay vault operations — deposit USDC, redeem shares, check balance.
 // No operator contract, no roles, no TradFi. Just ERC20 approve + vault.deposit.
 
+import { W3ActionError } from '@w3-io/action-core'
 import { ENVIRONMENTS, METHODS } from './contracts.js'
 
 export function resolveEnvironment(env) {
   const config = ENVIRONMENTS[env]
   if (!config) {
-    throw new Error(`Unknown environment: "${env}". Available: ${Object.keys(ENVIRONMENTS).join(', ')}`)
+    throw new W3ActionError('MISSING_INPUT', `Unknown environment: "${env}". Available: ${Object.keys(ENVIRONMENTS).join(', ')}`)
   }
   return config
 }
