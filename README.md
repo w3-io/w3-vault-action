@@ -16,31 +16,31 @@ Deposit and withdraw USDC from Yelay vaults with cross-chain CCTP bridging.
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `deposit` | Deposit USDC into the Yelay vault. Direct from Base or cross-chain via CCTP. |
-| `withdraw-oldest` | Withdraw the oldest active deposit. Redeems shares and repays. |
-| `withdraw-by-id` | Withdraw a specific deposit by purchase order ID. |
-| `status` | Get vault status: total deposited, active count, accrued interest. |
-| `list-deposits` | List active deposits with pagination. |
+| Command           | Description                                                                  |
+| ----------------- | ---------------------------------------------------------------------------- |
+| `deposit`         | Deposit USDC into the Yelay vault. Direct from Base or cross-chain via CCTP. |
+| `withdraw-oldest` | Withdraw the oldest active deposit. Redeems shares and repays.               |
+| `withdraw-by-id`  | Withdraw a specific deposit by purchase order ID.                            |
+| `status`          | Get vault status: total deposited, active count, accrued interest.           |
+| `list-deposits`   | List active deposits with pagination.                                        |
 
 ## Inputs
 
-| Input | Required | Default | Description |
-|-------|----------|---------|-------------|
-| `command` | Yes | — | Operation to perform |
-| `po-id` | No | — | Purchase order ID (required for deposit, withdraw-by-id) |
-| `amount` | No | — | USDC amount (e.g. "1000.00") |
-| `source-chain` | No | `base` | Source chain for USDC. Cross-chain uses CCTP to bridge to Base first. |
-| `environment` | No | `testing` | `testing` or `production` |
-| `sandbox` | No | `false` | Use Circle IRIS sandbox for attestation |
-| `from` | No | `0` | Start index for deposit pagination |
-| `to` | No | `10` | End index for deposit pagination |
+| Input          | Required | Default   | Description                                                           |
+| -------------- | -------- | --------- | --------------------------------------------------------------------- |
+| `command`      | Yes      | —         | Operation to perform                                                  |
+| `po-id`        | No       | —         | Purchase order ID (required for deposit, withdraw-by-id)              |
+| `amount`       | No       | —         | USDC amount (e.g. "1000.00")                                          |
+| `source-chain` | No       | `base`    | Source chain for USDC. Cross-chain uses CCTP to bridge to Base first. |
+| `environment`  | No       | `testing` | `testing` or `production`                                             |
+| `sandbox`      | No       | `false`   | Use Circle IRIS sandbox for attestation                               |
+| `from`         | No       | `0`       | Start index for deposit pagination                                    |
+| `to`           | No       | `10`      | End index for deposit pagination                                      |
 
 ## Outputs
 
-| Output | Description |
-|--------|-------------|
+| Output   | Description                  |
+| -------- | ---------------------------- |
 | `result` | JSON result of the operation |
 
 ### Deposit result

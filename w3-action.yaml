@@ -21,15 +21,15 @@ commands:
       source-chain:
         type: string
         required: false
-        description: 'Source chain (default: base). Options: base, ethereum, avalanche, arbitrum, optimism, polygon'
+        description: "Source chain (default: base). Options: base, ethereum, avalanche, arbitrum, optimism, polygon"
       environment:
         type: string
         required: false
-        description: 'Vault environment: testing (default) or production'
+        description: "Vault environment: testing (default) or production"
     outputs:
       result:
         type: object
-        description: '{type, chain, poId, amount, txHash, ...}'
+        description: "{type, chain, poId, amount, txHash, ...}"
 
   - name: withdraw-oldest
     description: >
@@ -39,11 +39,11 @@ commands:
       environment:
         type: string
         required: false
-        description: 'Vault environment: testing (default) or production'
+        description: "Vault environment: testing (default) or production"
     outputs:
       result:
         type: object
-        description: '{operator, vault, txHash}'
+        description: "{operator, vault, txHash}"
 
   - name: withdraw-by-id
     description: >
@@ -57,11 +57,11 @@ commands:
       environment:
         type: string
         required: false
-        description: 'Vault environment: testing (default) or production'
+        description: "Vault environment: testing (default) or production"
     outputs:
       result:
         type: object
-        description: '{poId, operator, vault, txHash}'
+        description: "{poId, operator, vault, txHash}"
 
   - name: status
     description: >
@@ -71,11 +71,11 @@ commands:
       environment:
         type: string
         required: false
-        description: 'Vault environment: testing (default) or production'
+        description: "Vault environment: testing (default) or production"
     outputs:
       result:
         type: object
-        description: '{totalDeposited, activeDeposits, canWithdraw, accruedInterest, ...}'
+        description: "{totalDeposited, activeDeposits, canWithdraw, accruedInterest, ...}"
 
   - name: list-deposits
     description: >
@@ -85,16 +85,16 @@ commands:
       environment:
         type: string
         required: false
-        description: 'Vault environment: testing (default) or production'
+        description: "Vault environment: testing (default) or production"
       from:
         type: number
         required: false
-        description: 'Start index (default: 0)'
+        description: "Start index (default: 0)"
       to:
         type: number
         required: false
-        description: 'End index (default: 10)'
+        description: "End index (default: 10)"
     outputs:
       result:
         type: object
-        description: '{deposits: [{poId, principal, currentValue}], ...}'
+        description: "{deposits: [{poId, principal, currentValue}], ...}"

@@ -27653,8 +27653,17 @@ function createCommandRouter(commands) {
  *   - $W3_BRIDGE_URL    → TCP URL (macOS Docker Desktop fallback)
  *
  * Usage:
- *   import { bridge } from "@w3-io/action-core";
+ *   import { bridge, ethereum } from "@w3-io/action-core";
  *
+ *   // Typed helpers (recommended — autocomplete + type checking):
+ *   const receipt = await ethereum.callContract({
+ *     contract: "0x...",
+ *     method: "deposit(uint256)",
+ *     args: ["1000000"],
+ *     gasMultiplier: "1.5",
+ *   });
+ *
+ *   // Generic (full control):
  *   const balance = await bridge.chain("ethereum", "get-balance", {
  *     address: "0x...",
  *   });
@@ -27744,7 +27753,17 @@ async function bridgeRequest(path, body) {
     }
 }
 // ---------------------------------------------------------------------------
-// Public API
+// Internal helpers
+// ---------------------------------------------------------------------------
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function chainRequest(chainName, action, params, network) {
+    return bridgeRequest(`/${chainName}/${action}`, {
+        network: network ?? chainName,
+        params,
+    });
+}
+// ---------------------------------------------------------------------------
+// Public API — generic
 // ---------------------------------------------------------------------------
 async function health() {
     try {
@@ -27755,22 +27774,82 @@ async function health() {
         return false;
     }
 }
+/**
+ * Execute a chain operation.
+ *
+ * For type-safe calls, use the typed helpers (`ethereum`, `solana`,
+ * `bitcoin`) instead. This generic method accepts any params.
+ */
 async function chain(chainName, action, params, network) {
-    return (await bridgeRequest(`/${chainName}/${action}`, {
-        network: network ?? chainName,
-        params,
-    }));
+    return chainRequest(chainName, action, params, network);
 }
 async function bridge_crypto(action, params) {
     return (await bridgeRequest(`/crypto/${action}`, {
         params,
     }));
 }
+// ---------------------------------------------------------------------------
+// Public API — typed chain helpers
+// ---------------------------------------------------------------------------
+/** Typed Ethereum operations. */
+const ethereum = {
+    getBalance: (params, network) => chainRequest("ethereum", "get-balance", params, network),
+    readContract: (params, network) => chainRequest("ethereum", "read-contract", params, network),
+    callContract: (params, network) => chainRequest("ethereum", "call-contract", params, network),
+    transfer: (params, network) => chainRequest("ethereum", "transfer", params, network),
+    sendTransaction: (params, network) => chainRequest("ethereum", "send-transaction", params, network),
+    deployContract: (params, network) => chainRequest("ethereum", "deploy-contract", params, network),
+    transferToken: (params, network) => chainRequest("ethereum", "transfer-token", params, network),
+    approveToken: (params, network) => chainRequest("ethereum", "approve-token", params, network),
+    transferNft: (params, network) => chainRequest("ethereum", "transfer-nft", params, network),
+    getTransaction: (params, network) => chainRequest("ethereum", "get-transaction", params, network),
+    waitForTransaction: (params, network) => chainRequest("ethereum", "wait-for-transaction", params, network),
+    getEvents: (params, network) => chainRequest("ethereum", "get-events", params, network),
+    resolveName: (params, network) => chainRequest("ethereum", "resolve-name", params, network),
+    getTokenBalance: (params, network) => chainRequest("ethereum", "get-token-balance", params, network),
+    getTokenAllowance: (params, network) => chainRequest("ethereum", "get-token-allowance", params, network),
+    getNftOwner: (params, network) => chainRequest("ethereum", "get-nft-owner", params, network),
+    getNftMetadata: (params, network) => chainRequest("ethereum", "get-nft-metadata", params, network),
+};
+/** Typed Solana operations. */
+const solana = {
+    getBalance: (params, network) => chainRequest("solana", "get-balance", params, network),
+    transfer: (params, network) => chainRequest("solana", "transfer", params, network),
+    transferToken: (params, network) => chainRequest("solana", "transfer-token", params, network),
+    callProgram: (params, network) => chainRequest("solana", "call-program", params, network),
+    getAccount: (params, network) => chainRequest("solana", "get-account", params, network),
+    getTokenBalance: (params, network) => chainRequest("solana", "get-token-balance", params, network),
+    getTokenAccounts: (params, network) => chainRequest("solana", "get-token-accounts", params, network),
+    getTransaction: (params, network) => chainRequest("solana", "get-transaction", params, network),
+    waitForTransaction: (params, network) => chainRequest("solana", "wait-for-transaction", params, network),
+    /** Generate an ephemeral keypair for use as an additional signer. */
+    generateKeypair: () => bridgeRequest("/solana/generate-keypair", {}),
+    /** Get the payer's public key (no secret exposed). */
+    payerAddress: () => bridgeRequest("/solana/payer-address"),
+};
+/** Typed Bitcoin operations. */
+const bitcoin = {
+    getBalance: (params, network) => chainRequest("bitcoin", "get-balance", params, network),
+    send: (params, network) => chainRequest("bitcoin", "send", params, network),
+    getUtxos: (params, network) => chainRequest("bitcoin", "get-utxos", params, network),
+    getTransaction: (params, network) => chainRequest("bitcoin", "get-transaction", params, network),
+    getFeeRate: (params, network) => chainRequest("bitcoin", "get-fee-rate", params ?? {}, network),
+    waitForTransaction: (params, network) => chainRequest("bitcoin", "wait-for-transaction", params, network),
+};
+// ---------------------------------------------------------------------------
+// Default export
+// ---------------------------------------------------------------------------
 /**
  * The bridge client.
  *
- *   import { bridge } from "@w3-io/action-core";
+ *   import { bridge, ethereum, solana, bitcoin } from "@w3-io/action-core";
  *
+ *   // Typed (recommended):
+ *   const receipt = await ethereum.callContract({ contract, method, args });
+ *   const sig = await solana.callProgram({ programId, accounts, data });
+ *   const tx = await bitcoin.send({ to, amount });
+ *
+ *   // Generic:
  *   const bal = await bridge.chain("ethereum", "get-balance", { address });
  *   const hash = await bridge.crypto("keccak-256", { data: "0x..." });
  *   const ok = await bridge.health();
@@ -27920,36 +27999,39 @@ function createMockCore() {
 
 const ENVIRONMENTS = {
   testing: {
-    name: 'testing',
-    vault: '0x7b3D25c37c6ADf650F1f7696be2278cCFa2b638F',
-    usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    name: "testing",
+    vault: "0x7b3D25c37c6ADf650F1f7696be2278cCFa2b638F",
+    usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     projectId: 1,
     chainId: 8453,
-    network: 'base',
+    network: "base",
   },
   production: {
-    name: 'production',
-    vault: '0x0c6dAf9B4e0EB49A0c80c325da82EC028Cb8118B',
-    usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    name: "production",
+    vault: "0x0c6dAf9B4e0EB49A0c80c325da82EC028Cb8118B",
+    usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     projectId: 1,
     chainId: 8453,
-    network: 'base',
+    network: "base",
   },
-}
+};
 
 const METHODS = {
   // ERC20
-  approve: 'function approve(address spender, uint256 amount) returns (bool)',
-  balanceOf: 'function balanceOf(address account) returns (uint256)',
+  approve: "function approve(address spender, uint256 amount) returns (bool)",
+  balanceOf: "function balanceOf(address account) returns (uint256)",
 
   // Yelay vault
-  deposit: 'function deposit(uint256 assets, uint256 projectId, address receiver) returns (uint256 shares)',
-  redeem: 'function redeem(uint256 shares, uint256 projectId, address receiver) returns (uint256 assets)',
-  convertToAssets: 'function convertToAssets(uint256 shares) returns (uint256)',
-  convertToShares: 'function convertToShares(uint256 assets) returns (uint256)',
-  balanceOfShares: 'function balanceOf(address account, uint256 id) returns (uint256)',
-  underlyingAsset: 'function underlyingAsset() returns (address)',
-}
+  deposit:
+    "function deposit(uint256 assets, uint256 projectId, address receiver) returns (uint256 shares)",
+  redeem:
+    "function redeem(uint256 shares, uint256 projectId, address receiver) returns (uint256 assets)",
+  convertToAssets: "function convertToAssets(uint256 shares) returns (uint256)",
+  convertToShares: "function convertToShares(uint256 assets) returns (uint256)",
+  balanceOfShares:
+    "function balanceOf(address account, uint256 id) returns (uint256)",
+  underlyingAsset: "function underlyingAsset() returns (address)",
+};
 
 ;// CONCATENATED MODULE: ./src/vault.js
 // Direct Yelay vault operations — deposit USDC, redeem shares, check balance.
@@ -27959,29 +28041,32 @@ const METHODS = {
 
 
 function resolveEnvironment(env) {
-  const config = ENVIRONMENTS[env]
+  const config = ENVIRONMENTS[env];
   if (!config) {
-    throw new error_W3ActionError('MISSING_INPUT', `Unknown environment: "${env}". Available: ${Object.keys(ENVIRONMENTS).join(', ')}`)
+    throw new error_W3ActionError(
+      "MISSING_INPUT",
+      `Unknown environment: "${env}". Available: ${Object.keys(ENVIRONMENTS).join(", ")}`,
+    );
   }
-  return config
+  return config;
 }
 
 function rpcParam(opts) {
-  return opts.rpcUrl ? { rpcUrl: opts.rpcUrl } : {}
+  return opts.rpcUrl ? { rpcUrl: opts.rpcUrl } : {};
 }
 
 function parseUsdcAmount(amount) {
-  const parts = amount.split('.')
-  const whole = parts[0]
-  const frac = (parts[1] || '').padEnd(6, '0').slice(0, 6)
-  return `${whole}${frac}`
+  const parts = amount.split(".");
+  const whole = parts[0];
+  const frac = (parts[1] || "").padEnd(6, "0").slice(0, 6);
+  return `${whole}${frac}`;
 }
 
 function formatUsdc(raw) {
-  const s = String(raw).padStart(7, '0')
-  const whole = s.slice(0, -6) || '0'
-  const frac = s.slice(-6)
-  return `${whole}.${frac}`
+  const s = String(raw).padStart(7, "0");
+  const whole = s.slice(0, -6) || "0";
+  const frac = s.slice(-6);
+  return `${whole}.${frac}`;
 }
 
 /**
@@ -27990,79 +28075,109 @@ function formatUsdc(raw) {
  * 2. Call vault.deposit(amount, projectId, receiver)
  */
 async function deposit(bridge, opts) {
-  const env = resolveEnvironment(opts.environment)
-  const amountRaw = parseUsdcAmount(opts.amount)
+  const env = resolveEnvironment(opts.environment);
+  const amountRaw = parseUsdcAmount(opts.amount);
 
   // Step 1: Approve USDC for the vault
-  await bridge.chain('ethereum', 'call-contract', {
-    contract: env.usdc,
-    method: METHODS.approve,
-    args: [env.vault, amountRaw],
-    ...rpcParam(opts),
-  }, env.network)
+  await bridge.chain(
+    "ethereum",
+    "call-contract",
+    {
+      contract: env.usdc,
+      method: METHODS.approve,
+      args: [env.vault, amountRaw],
+      ...rpcParam(opts),
+    },
+    env.network,
+  );
 
   // Step 2: Deposit into vault — shares go to the signer.
   // Gas is estimated by the protocol with a 1.3x safety multiplier.
-  const result = await bridge.chain('ethereum', 'call-contract', {
-    contract: env.vault,
-    method: METHODS.deposit,
-    args: [amountRaw, String(env.projectId), opts.receiver || '0x0000000000000000000000000000000000000000'],
-    ...rpcParam(opts),
-  }, env.network)
+  const result = await bridge.chain(
+    "ethereum",
+    "call-contract",
+    {
+      contract: env.vault,
+      method: METHODS.deposit,
+      args: [
+        amountRaw,
+        String(env.projectId),
+        opts.receiver || "0x0000000000000000000000000000000000000000",
+      ],
+      ...rpcParam(opts),
+    },
+    env.network,
+  );
 
   return {
     vault: env.vault,
     amount: amountRaw,
     amountFormatted: opts.amount,
     projectId: env.projectId,
-    receiver: opts.receiver || 'signer',
+    receiver: opts.receiver || "signer",
     txHash: result.txHash || result.transactionHash || result.result,
-  }
+  };
 }
 
 /**
  * Redeem shares for USDC.
  */
 async function redeem(bridge, opts) {
-  const env = resolveEnvironment(opts.environment)
+  const env = resolveEnvironment(opts.environment);
 
   // Gas is estimated by the protocol with a 1.3x safety multiplier.
-  const result = await bridge.chain('ethereum', 'call-contract', {
-    contract: env.vault,
-    method: METHODS.redeem,
-    args: [opts.shares, String(env.projectId), opts.receiver || '0x0000000000000000000000000000000000000000'],
-    ...rpcParam(opts),
-  }, env.network)
+  const result = await bridge.chain(
+    "ethereum",
+    "call-contract",
+    {
+      contract: env.vault,
+      method: METHODS.redeem,
+      args: [
+        opts.shares,
+        String(env.projectId),
+        opts.receiver || "0x0000000000000000000000000000000000000000",
+      ],
+      ...rpcParam(opts),
+    },
+    env.network,
+  );
 
   return {
     vault: env.vault,
     shares: opts.shares,
     projectId: env.projectId,
     txHash: result.txHash || result.transactionHash || result.result,
-  }
+  };
 }
 
 /**
  * Get vault balance — USDC balance, share balance, and share value.
  */
 async function vault_status(bridge, opts) {
-  const env = resolveEnvironment(opts.environment)
+  const env = resolveEnvironment(opts.environment);
 
   const read = (contract, method, args) =>
-    bridge.chain('ethereum', 'read-contract', {
-      contract,
-      method,
-      args: args || [],
-      ...rpcParam(opts),
-    }, env.network).catch(() => ({ result: '0' }))
+    bridge
+      .chain(
+        "ethereum",
+        "read-contract",
+        {
+          contract,
+          method,
+          args: args || [],
+          ...rpcParam(opts),
+        },
+        env.network,
+      )
+      .catch(() => ({ result: "0" }));
 
-  const address = opts.address || '0x0000000000000000000000000000000000000000'
+  const address = opts.address || "0x0000000000000000000000000000000000000000";
 
   const [usdcBalance, shares, shareValue] = await Promise.all([
     read(env.usdc, METHODS.balanceOf, [address]),
     read(env.vault, METHODS.balanceOfShares, [address, String(env.projectId)]),
-    read(env.vault, METHODS.convertToAssets, ['1000000']),
-  ])
+    read(env.vault, METHODS.convertToAssets, ["1000000"]),
+  ]);
 
   return {
     environment: env.name,
@@ -28073,7 +28188,7 @@ async function vault_status(bridge, opts) {
     shares: shares.result,
     shareValuePer1USDC: formatUsdc(shareValue.result),
     projectId: env.projectId,
-  }
+  };
 }
 
 ;// CONCATENATED MODULE: ./src/index.js
@@ -28083,48 +28198,71 @@ async function vault_status(bridge, opts) {
 
 
 function getRpcUrl() {
-  return lib_core.getInput('rpc-url') || undefined
+  return lib_core.getInput("rpc-url") || undefined;
 }
 
 const router = createCommandRouter({
   deposit: async () => {
-    const amount = lib_core.getInput('amount', { required: true })
-    const environment = lib_core.getInput('environment') || 'testing'
-    const receiver = lib_core.getInput('receiver') || undefined
-    const result = await deposit(bridge, { amount, environment, receiver, rpcUrl: getRpcUrl() })
-    setJsonOutput('result', result)
+    const amount = lib_core.getInput("amount", { required: true });
+    const environment = lib_core.getInput("environment") || "testing";
+    const receiver = lib_core.getInput("receiver") || undefined;
+    const result = await deposit(bridge, {
+      amount,
+      environment,
+      receiver,
+      rpcUrl: getRpcUrl(),
+    });
+    setJsonOutput("result", result);
     lib_core.summary
-      .addHeading('W3 Vault: deposit', 3)
+      .addHeading("W3 Vault: deposit", 3)
       .addRaw(`**Amount:** ${result.amountFormatted} USDC\n\n`)
       .addRaw(`**Vault:** \`${result.vault}\`\n\n`)
       .addRaw(`**TX:** \`${result.txHash}\`\n\n`)
-      .write()
+      .write();
   },
 
   redeem: async () => {
-    const shares = lib_core.getInput('shares', { required: true })
-    const environment = lib_core.getInput('environment') || 'testing'
-    const receiver = lib_core.getInput('receiver') || undefined
-    const result = await redeem(bridge, { shares, environment, receiver, rpcUrl: getRpcUrl() })
-    setJsonOutput('result', result)
+    const shares = lib_core.getInput("shares", { required: true });
+    const environment = lib_core.getInput("environment") || "testing";
+    const receiver = lib_core.getInput("receiver") || undefined;
+    const result = await redeem(bridge, {
+      shares,
+      environment,
+      receiver,
+      rpcUrl: getRpcUrl(),
+    });
+    setJsonOutput("result", result);
     lib_core.summary
-      .addHeading('W3 Vault: redeem', 3)
-      .addCodeBlock(JSON.stringify(result, null, 2), 'json')
-      .write()
+      .addHeading("W3 Vault: redeem", 3)
+      .addCodeBlock(JSON.stringify(result, null, 2), "json")
+      .write();
   },
 
   status: async () => {
-    const environment = lib_core.getInput('environment') || 'testing'
-    const address = lib_core.getInput('address') || undefined
-    const result = await vault_status(bridge, { environment, address, rpcUrl: getRpcUrl() })
-    setJsonOutput('result', result)
+    const environment = lib_core.getInput("environment") || "testing";
+    const address = lib_core.getInput("address") || undefined;
+    const result = await vault_status(bridge, {
+      environment,
+      address,
+      rpcUrl: getRpcUrl(),
+    });
+    setJsonOutput("result", result);
     lib_core.summary
-      .addHeading('W3 Vault: status', 3)
+      .addHeading("W3 Vault: status", 3)
       .addRaw(`**USDC Balance:** ${result.usdcBalance}\n\n`)
       .addRaw(`**Shares:** ${result.shares}\n\n`)
-      .write()
+      .write();
   },
-})
+});
 
-router()
+// Suppress noisy unhandled rejection warnings; the wrapper below
+// catches via handleError, which calls core.setFailed.
+process.on("unhandledRejection", () => {});
+(async () => {
+  try {
+    await router();
+  } catch (error) {
+    handleError(error);
+  }
+})();
 
