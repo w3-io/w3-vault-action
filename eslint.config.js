@@ -1,42 +1,52 @@
-import js from '@eslint/js'
+import js from "@eslint/js";
 
 export default [
   js.configs.recommended,
   {
     languageOptions: {
-      ecmaVersion: 2022,
-      sourceType: 'module',
+      ecmaVersion: "latest",
+      sourceType: "module",
       globals: {
-        console: 'readonly',
-        process: 'readonly',
-        URL: 'readonly',
-        fetch: 'readonly',
-        Buffer: 'readonly',
-        btoa: 'readonly',
-        atob: 'readonly',
-        URLSearchParams: 'readonly',
-        AbortSignal: 'readonly',
-        setTimeout: 'readonly',
-        clearTimeout: 'readonly',
-        crypto: 'readonly',
+        // Node.js runtime globals available in modern Node 20+
+        AbortController: "readonly",
+        AbortSignal: "readonly",
+        Buffer: "readonly",
+        TextDecoder: "readonly",
+        TextEncoder: "readonly",
+        URL: "readonly",
+        URLSearchParams: "readonly",
+        atob: "readonly",
+        btoa: "readonly",
+        clearImmediate: "readonly",
+        clearInterval: "readonly",
+        clearTimeout: "readonly",
+        console: "readonly",
+        crypto: "readonly",
+        fetch: "readonly",
+        global: "readonly",
+        globalThis: "readonly",
+        performance: "readonly",
+        process: "readonly",
+        queueMicrotask: "readonly",
+        setImmediate: "readonly",
+        setInterval: "readonly",
+        setTimeout: "readonly",
+        structuredClone: "readonly",
       },
+    },
+    rules: {
+      "no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
     },
   },
   {
-    files: ['__tests__/**/*.js'],
+    files: ["test/**"],
     languageOptions: {
       globals: {
-        describe: 'readonly',
-        test: 'readonly',
-        expect: 'readonly',
-        beforeEach: 'readonly',
-        afterEach: 'readonly',
-        jest: 'readonly',
-        global: 'readonly',
+        global: "readonly",
       },
     },
   },
   {
-    ignores: ['dist/', 'node_modules/'],
+    ignores: ["dist/", "node_modules/"],
   },
-]
+];

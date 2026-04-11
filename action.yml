@@ -1,6 +1,6 @@
-name: 'W3 Vault Action'
-description: 'Deposit and withdraw USDC from W3 Yelay vaults, with cross-chain CCTP bridging'
-author: 'w3-io'
+name: "W3 Vault Action"
+description: "Deposit and withdraw USDC from W3 Yelay vaults, with cross-chain CCTP bridging"
+author: "w3-io"
 
 inputs:
   command:
@@ -11,42 +11,42 @@ inputs:
 
   # Deposit inputs
   po-id:
-    description: 'Purchase order identifier for deposit tracking'
+    description: "Purchase order identifier for deposit tracking"
     required: false
   amount:
     description: 'USDC amount as string (e.g. "1000.00")'
     required: false
   source-chain:
-    description: 'Source chain for USDC (default: base). For cross-chain, CCTP bridges to Base first.'
+    description: "Source chain for USDC (default: base). For cross-chain, CCTP bridges to Base first."
     required: false
-    default: 'base'
+    default: "base"
 
   # Environment
   environment:
-    description: 'Vault environment: testing (default) or production'
+    description: "Vault environment: testing (default) or production"
     required: false
-    default: 'testing'
+    default: "testing"
 
   # CCTP config (for cross-chain deposits)
   sandbox:
-    description: 'Use Circle IRIS sandbox for attestation (default: false)'
+    description: "Use Circle IRIS sandbox for attestation (default: false)"
     required: false
-    default: 'false'
+    default: "false"
 
   # Pagination (for list-deposits)
   from:
-    description: 'Start index for deposit pagination (default: 0)'
+    description: "Start index for deposit pagination (default: 0)"
     required: false
-    default: '0'
+    default: "0"
   to:
-    description: 'End index for deposit pagination (default: 10)'
+    description: "End index for deposit pagination (default: 10)"
     required: false
-    default: '10'
+    default: "10"
 
 outputs:
   result:
-    description: 'JSON result of the operation'
+    description: "JSON result of the operation"
 
 runs:
-  using: 'node20'
-  main: 'dist/index.js'
+  using: "node20"
+  main: "dist/index.js"

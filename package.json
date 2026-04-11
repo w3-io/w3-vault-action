@@ -9,13 +9,15 @@
     "format": "prettier --write .",
     "lint": "eslint src/",
     "test": "node --test test/*.test.js",
-    "all": "npm run format && npm run lint && npm run test && npm run build"
+    "all": "npm run format && npm run lint && npm run test && npm run build",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@actions/core": "^1.11.1",
-    "@w3-io/action-core": "^0.4.0"
+    "@w3-io/action-core": "^0.4.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "@vercel/ncc": "^0.38.0",
     "eslint": "^9.0.0",
     "prettier": "^3.4.0"
