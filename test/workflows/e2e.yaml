@@ -9,13 +9,15 @@
 # Prerequisites:
 #   - W3 local network running (make dev)
 #   - W3_SECRET_ETHEREUM (bridge signer with USDC on Base)
+#
+# Valid commands: deposit, redeem, status
 
 name: Vault E2E
 on:
   workflow_dispatch: {}
 
 jobs:
-  # ── Read-only: status + list-deposits ───────────────────────────
+  # ── Read-only: status ──────────────────────────────────────────────
   reads:
     runs-on: ubuntu-latest
     steps:
@@ -28,25 +30,12 @@ jobs:
           command: status
           environment: testing
 
-      # list-deposits
-      - uses: w3-io/w3-vault-action@master
-        id: list-deposits
-        env:
-          W3_SECRET_ETHEREUM: ${{ secrets.W3_SECRET_ETHEREUM }}
-        with:
-          command: list-deposits
-          environment: testing
-          from: "0"
-          to: "10"
-
       - run: |
           echo "=== Status ==="
           echo "${{ steps.status.outputs.result }}"
-          echo "=== List Deposits ==="
-          echo "${{ steps.list-deposits.outputs.result }}"
 
-  # ── Write: deposit -> status -> withdraw-oldest ─────────────────
-  deposit-withdraw:
+  # ── Write: deposit -> status -> redeem ─────────────────────────────
+  deposit-redeem:
     runs-on: ubuntu-latest
     steps:
       # 1. Deposit 1.00 USDC
@@ -72,46 +61,22 @@ jobs:
           command: status
           environment: testing
 
-      # 3. List deposits to confirm
+      # 3. Recovery: redeem to return funds
       - uses: w3-io/w3-vault-action@master
-        id: deposits-after
-        env:
-          W3_SECRET_ETHEREUM: ${{ secrets.W3_SECRET_ETHEREUM }}
-        with:
-          command: list-deposits
-          environment: testing
-          from: "0"
-          to: "10"
-
-      # 4. Recovery: withdraw the oldest deposit (returns the 1.00 USDC)
-      - uses: w3-io/w3-vault-action@master
-        id: withdraw
+        id: redeem
         env:
           W3_SECRET_ETHEREUM: ${{ secrets.W3_SECRET_ETHEREUM }}
         bridge-allow:
           - ethereum/call-contract
         with:
-          command: withdraw-oldest
+          command: redeem
+          amount: "1.00"
           environment: testing
-
-      # 5. Withdraw by ID (if a deposit ID is known)
-      # - uses: w3-io/w3-vault-action@master
-      #   id: withdraw-by-id
-      #   env:
-      #     W3_SECRET_ETHEREUM: ${{ secrets.W3_SECRET_ETHEREUM }}
-      #   bridge-allow:
-      #     - ethereum/call-contract
-      #   with:
-      #     command: withdraw-by-id
-      #     environment: testing
-      #     po-id: 'e2e-test-001'
 
       - run: |
           echo "=== Deposit ==="
           echo "${{ steps.deposit.outputs.result }}"
           echo "=== Status After ==="
           echo "${{ steps.status-after.outputs.result }}"
-          echo "=== Deposits After ==="
-          echo "${{ steps.deposits-after.outputs.result }}"
-          echo "=== Withdraw ==="
-          echo "${{ steps.withdraw.outputs.result }}"
+          echo "=== Redeem ==="
+          echo "${{ steps.redeem.outputs.result }}"
