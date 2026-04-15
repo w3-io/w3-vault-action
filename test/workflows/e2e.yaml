@@ -1,0 +1,116 @@
+# E2E Test Workflow
+#
+# Exercises every command against real APIs/contracts.
+# Run on a local W3 network with:
+#   w3 workflow deploy test/workflows/e2e.yaml
+#   w3 workflow "Vault E2E" trigger
+#
+# Prerequisites:
+#   - W3 local network running (make dev)
+#   - W3_SECRET_ETHEREUM (bridge signer with USDC on Base)
+
+name: Vault E2E
+on:
+  workflow_dispatch: {}
+
+jobs:
+  # ── Read-only: status + list-deposits ───────────────────────────
+  reads:
+    runs-on: ubuntu-latest
+    steps:
+      # status
+      - uses: w3-io/w3-vault-action@master
+        id: status
+        env:
+          W3_SECRET_ETHEREUM: ${{ secrets.W3_SECRET_ETHEREUM }}
+        with:
+          command: status
+          environment: testing
+
+      # list-deposits
+      - uses: w3-io/w3-vault-action@master
+        id: list-deposits
+        env:
+          W3_SECRET_ETHEREUM: ${{ secrets.W3_SECRET_ETHEREUM }}
+        with:
+          command: list-deposits
+          environment: testing
+          from: '0'
+          to: '10'
+
+      - run: |
+          echo "=== Status ==="
+          echo "${{ steps.status.outputs.result }}"
+          echo "=== List Deposits ==="
+          echo "${{ steps.list-deposits.outputs.result }}"
+
+  # ── Write: deposit -> status -> withdraw-oldest ─────────────────
+  deposit-withdraw:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Deposit 1.00 USDC
+      - uses: w3-io/w3-vault-action@master
+        id: deposit
+        env:
+          W3_SECRET_ETHEREUM: ${{ secrets.W3_SECRET_ETHEREUM }}
+        bridge-allow:
+          - ethereum/call-contract
+        with:
+          command: deposit
+          amount: '1.00'
+          po-id: 'e2e-test-001'
+          source-chain: base
+          environment: testing
+
+      # 2. Check status after deposit
+      - uses: w3-io/w3-vault-action@master
+        id: status-after
+        env:
+          W3_SECRET_ETHEREUM: ${{ secrets.W3_SECRET_ETHEREUM }}
+        with:
+          command: status
+          environment: testing
+
+      # 3. List deposits to confirm
+      - uses: w3-io/w3-vault-action@master
+        id: deposits-after
+        env:
+          W3_SECRET_ETHEREUM: ${{ secrets.W3_SECRET_ETHEREUM }}
+        with:
+          command: list-deposits
+          environment: testing
+          from: '0'
+          to: '10'
+
+      # 4. Withdraw the oldest deposit
+      - uses: w3-io/w3-vault-action@master
+        id: withdraw
+        env:
+          W3_SECRET_ETHEREUM: ${{ secrets.W3_SECRET_ETHEREUM }}
+        bridge-allow:
+          - ethereum/call-contract
+        with:
+          command: withdraw-oldest
+          environment: testing
+
+      # 5. Withdraw by ID (if a deposit ID is known)
+      # - uses: w3-io/w3-vault-action@master
+      #   id: withdraw-by-id
+      #   env:
+      #     W3_SECRET_ETHEREUM: ${{ secrets.W3_SECRET_ETHEREUM }}
+      #   bridge-allow:
+      #     - ethereum/call-contract
+      #   with:
+      #     command: withdraw-by-id
+      #     environment: testing
+      #     po-id: 'e2e-test-001'
+
+      - run: |
+          echo "=== Deposit ==="
+          echo "${{ steps.deposit.outputs.result }}"
+          echo "=== Status After ==="
+          echo "${{ steps.status-after.outputs.result }}"
+          echo "=== Deposits After ==="
+          echo "${{ steps.deposits-after.outputs.result }}"
+          echo "=== Withdraw ==="
+          echo "${{ steps.withdraw.outputs.result }}"
