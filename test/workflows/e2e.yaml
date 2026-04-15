@@ -70,7 +70,7 @@ jobs:
           - ethereum/call-contract
         with:
           command: redeem
-          amount: "1.00"
+          shares: "1000000"
           environment: testing
 
       - run: |
