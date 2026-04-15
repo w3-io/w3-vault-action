@@ -6,95 +6,71 @@ repo: w3-io/w3-vault-action
 commands:
   - name: deposit
     description: >
-      Deposit USDC into a W3 Yelay vault. If source-chain is not Base,
-      bridges USDC via CCTP first (burn → attest → mint on Base), then
-      deposits into the vault.
+      Deposit USDC into a W3 Yelay vault.
     inputs:
-      po-id:
-        type: string
-        required: true
-        description: Purchase order identifier for tracking
       amount:
         type: string
         required: true
         description: 'USDC amount (e.g. "1000.00")'
-      source-chain:
-        type: string
-        required: false
-        description: "Source chain (default: base). Options: base, ethereum, avalanche, arbitrum, optimism, polygon"
       environment:
         type: string
         required: false
         description: "Vault environment: testing (default) or production"
-    outputs:
-      result:
-        type: object
-        description: "{type, chain, poId, amount, txHash, ...}"
-
-  - name: withdraw-oldest
-    description: >
-      Withdraw the oldest active deposit from the vault. Redeems Yelay
-      shares for USDC (principal + yield) and repays TradFi.
-    inputs:
-      environment:
+      receiver:
         type: string
         required: false
-        description: "Vault environment: testing (default) or production"
+        description: "Receiver address override"
+      rpc-url:
+        type: string
+        required: false
+        description: "RPC endpoint URL override"
     outputs:
       result:
         type: object
-        description: "{operator, vault, txHash}"
+        description: "{amountFormatted, vault, txHash}"
 
-  - name: withdraw-by-id
+  - name: redeem
     description: >
-      Withdraw a specific deposit by purchase order ID. Redeems Yelay
-      shares and repays TradFi.
+      Redeem shares from a W3 Yelay vault for USDC.
     inputs:
-      po-id:
+      shares:
         type: string
         required: true
-        description: Purchase order identifier
+        description: "Number of vault shares to redeem"
       environment:
         type: string
         required: false
         description: "Vault environment: testing (default) or production"
+      receiver:
+        type: string
+        required: false
+        description: "Receiver address override"
+      rpc-url:
+        type: string
+        required: false
+        description: "RPC endpoint URL override"
     outputs:
       result:
         type: object
-        description: "{poId, operator, vault, txHash}"
+        description: "Redemption result object"
 
   - name: status
     description: >
-      Get vault status — total deposited, active deposits, withdrawable
-      state, and accrued interest.
+      Get vault status including USDC balance and shares.
     inputs:
       environment:
         type: string
         required: false
         description: "Vault environment: testing (default) or production"
-    outputs:
-      result:
-        type: object
-        description: "{totalDeposited, activeDeposits, canWithdraw, accruedInterest, ...}"
-
-  - name: list-deposits
-    description: >
-      List active deposits with pagination. Returns purchase order IDs,
-      principals, and current values.
-    inputs:
-      environment:
+      address:
         type: string
         required: false
-        description: "Vault environment: testing (default) or production"
-      from:
-        type: number
+        description: "Address to query status for"
+      rpc-url:
+        type: string
         required: false
-        description: "Start index (default: 0)"
-      to:
-        type: number
-        required: false
-        description: "End index (default: 10)"
+        description: "RPC endpoint URL override"
     outputs:
       result:
         type: object
-        description: "{deposits: [{poId, principal, currentValue}], ...}"
+        description: "{usdcBalance, shares}"
