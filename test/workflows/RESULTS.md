@@ -4,8 +4,8 @@
 
 ## Prerequisites
 
-| Credential | Env var | Source |
-|-----------|---------|--------|
+| Credential           | Env var              | Source        |
+| -------------------- | -------------------- | ------------- |
 | Ethereum private key | `W3_SECRET_ETHEREUM` | Bridge signer |
 
 ### On-chain requirements
@@ -14,20 +14,20 @@ Funded EVM wallet on Base with USDC.
 
 ## Results
 
-| # | Step | Command | Status | Notes |
-|---|------|---------|--------|-------|
-| 1 | Status | `status` | PASS | Read-only |
-| 2 | Print status | (run step) | PASS | |
-| 3 | Deposit 1.00 USDC | `deposit` | PASS | environment: testing |
-| 4 | Status after deposit | `status` | PASS | |
-| 5 | Redeem shares | `redeem` | PASS | Recovery step |
-| 6 | Print results | (run step) | PASS | |
+| #   | Step                 | Command    | Status | Notes                |
+| --- | -------------------- | ---------- | ------ | -------------------- |
+| 1   | Status               | `status`   | PASS   | Read-only            |
+| 2   | Print status         | (run step) | PASS   |                      |
+| 3   | Deposit 1.00 USDC    | `deposit`  | PASS   | environment: testing |
+| 4   | Status after deposit | `status`   | PASS   |                      |
+| 5   | Redeem shares        | `redeem`   | PASS   | Recovery step        |
+| 6   | Print results        | (run step) | PASS   |                      |
 
 ## Skipped Commands
 
-| Command | Reason |
-|---------|--------|
-| N/A | All commands tested |
+| Command | Reason              |
+| ------- | ------------------- |
+| N/A     | All commands tested |
 
 ## How to run
 
