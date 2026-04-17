@@ -3,6 +3,16 @@ partner: w3
 name: W3 Vault
 version: 1.0.0
 repo: w3-io/w3-vault-action
+description: >
+  W3 Vault provides secure key-value storage with the W3 bridge's
+  encryption layer. Store and retrieve secrets, configuration, and
+  state that persists across workflow runs.
+context: >
+  Use Vault for storing workflow state, configuration, or secrets
+  that need to persist across runs. Not a replacement for external
+  secret managers (use W3 namespace secrets for per-deployment
+  credentials). All operations go through the bridge — data is
+  encrypted at rest. Requires W3_SECRET_ETHEREUM for signing.
 commands:
   - name: deposit
     description: >
