@@ -5,8 +5,11 @@ author: "w3-io"
 inputs:
   command:
     description: >
-      Operation to perform: deposit, withdraw-oldest, withdraw-by-id,
-      status, list-deposits.
+      Operation to perform.
+      Submitting (signs + broadcasts via the W3 bridge):
+        deposit, redeem, status, withdraw-oldest, withdraw-by-id, list-deposits.
+      Intent-building (returns unsigned tx payload for external signers):
+        build-deposit, build-approve.
     required: true
 
   # Deposit inputs
@@ -14,16 +17,28 @@ inputs:
     description: "Purchase order identifier for deposit tracking"
     required: false
   amount:
-    description: 'USDC amount as string (e.g. "1000.00")'
+    description: 'USDC amount as string (e.g. "1000.00"). For build-approve, MUST be exact (max-uint disallowed).'
     required: false
   source-chain:
     description: "Source chain for USDC (default: base). For cross-chain, CCTP bridges to Base first."
     required: false
     default: "base"
 
+  # Intent-builder inputs (build-deposit / build-approve)
+  receiver:
+    description: "Receiver address. Required by build-deposit. Defaults to signer for direct deposit/redeem."
+    required: false
+  spender:
+    description: "Spender address for build-approve. Defaults to the configured environment's vault."
+    required: false
+
   # Environment
   environment:
-    description: "Vault environment: testing (default) or production"
+    description: >
+      Vault environment: testing (Base, projectId=1), base-production
+      (Base, projectId=1), ethereum-production (Ethereum, projectId=30301
+      — the W3 Vault that payments.w3.io reads APY from), or production
+      (alias of base-production, for backwards compatibility).
     required: false
     default: "testing"
 

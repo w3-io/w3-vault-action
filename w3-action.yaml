@@ -4,19 +4,23 @@ name: W3 Vault
 version: 1.0.0
 repo: w3-io/w3-vault-action
 description: >
-  W3 Vault provides secure key-value storage with the W3 bridge's
-  encryption layer. Store and retrieve secrets, configuration, and
-  state that persists across workflow runs.
+  W3 Vault — a Yelay-whitelabeled USDC yield vault. Deposit USDC into
+  the smart-vault and earn protocol-curated DeFi yield; redeem shares
+  back to USDC at any time.
 context: >
-  Use Vault for storing workflow state, configuration, or secrets
-  that need to persist across runs. Not a replacement for external
-  secret managers (use W3 namespace secrets for per-deployment
-  credentials). All operations go through the bridge — data is
-  encrypted at rest. Requires W3_SECRET_ETHEREUM for signing.
+  Use the submitting commands (deposit, redeem, status) when the
+  workflow runs under the W3 bridge's own signer. Use the
+  intent-builder commands (build-deposit, build-approve) when an
+  external custody system (ForDefi, Safe, Fireblocks, Lit, multisig)
+  is doing the signing — the builder produces the unsigned tx payload
+  and a submitter action consumes it. All ERC-20 approvals produced
+  by this action are exact-amount; max-uint approvals are explicitly
+  not supported (enforced upstream by no-max-approve lint).
+
 commands:
+  # ── Submitting commands (signs + broadcasts via W3 bridge) ──
   - name: deposit
-    description: >
-      Deposit USDC into a W3 Yelay vault.
+    description: Deposit USDC into the configured Yelay vault (bridge-signed).
     inputs:
       amount:
         type: string
@@ -25,62 +29,198 @@ commands:
       environment:
         type: string
         required: false
-        description: "Vault environment: testing (default) or production"
+        description: "Vault environment: testing | base-production | ethereum-production | production"
       receiver:
         type: string
         required: false
-        description: "Receiver address override"
+        description: "Receiver address for vault shares (defaults to signer)"
       rpc-url:
         type: string
         required: false
-        description: "RPC endpoint URL override"
     outputs:
       result:
         type: object
-        description: "{amountFormatted, vault, txHash}"
+        description: "{vault, amount, amountFormatted, projectId, receiver, txHash}"
 
   - name: redeem
-    description: >
-      Redeem shares from a W3 Yelay vault for USDC.
+    description: Redeem vault shares for USDC (bridge-signed).
     inputs:
       shares:
         type: string
         required: true
-        description: "Number of vault shares to redeem"
       environment:
         type: string
         required: false
-        description: "Vault environment: testing (default) or production"
       receiver:
         type: string
         required: false
-        description: "Receiver address override"
       rpc-url:
         type: string
         required: false
-        description: "RPC endpoint URL override"
     outputs:
       result:
         type: object
-        description: "Redemption result object"
+        description: "{vault, shares, projectId, txHash}"
 
   - name: status
-    description: >
-      Get vault status including USDC balance and shares.
+    description: Read vault state for an address — USDC balance, share balance, share value.
     inputs:
-      environment:
-        type: string
-        required: false
-        description: "Vault environment: testing (default) or production"
       address:
         type: string
         required: false
-        description: "Address to query status for"
+      environment:
+        type: string
+        required: false
       rpc-url:
         type: string
         required: false
-        description: "RPC endpoint URL override"
     outputs:
       result:
         type: object
-        description: "{usdcBalance, shares}"
+        description: "{environment, vault, address, usdcBalance, shares, shareValuePer1USDC, projectId}"
+
+  # ── Intent-builder commands (no signing, no broadcast) ──
+  - name: build-deposit
+    description: >
+      Build an unsigned deposit transaction intent. Returns the
+      {chain, to, value, data} payload that a submitter action
+      (ForDefi, Safe, Fireblocks, etc.) consumes. Pure: no bridge
+      call, no signer touched.
+    inputs:
+      amount:
+        type: string
+        required: true
+      receiver:
+        type: string
+        required: true
+        description: "Address that will own the resulting vault shares"
+      environment:
+        type: string
+        required: false
+    outputs:
+      result:
+        type: object
+        description: >
+          {intent:"yelay-deposit", chain, chainId, to, value, data:{type,hex_data},
+           selector, vault, projectId, underlying, amount, amountFormatted,
+           receiver, environment}
+
+  - name: build-approve
+    description: >
+      Build an unsigned exact-amount ERC-20 approve intent. Defaults
+      the spender to the configured vault; pass `spender` to approve
+      any other contract. Max-uint approvals not supported.
+    inputs:
+      amount:
+        type: string
+        required: true
+        description: "Exact USDC amount (max-uint disallowed)"
+      spender:
+        type: string
+        required: false
+      environment:
+        type: string
+        required: false
+    outputs:
+      result:
+        type: object
+        description: >
+          {intent:"erc20-approve", chain, chainId, to, value, data:{type,hex_data},
+           selector, token, spender, amount, amountFormatted, environment}
+
+# ── Display metadata for W3 Explorer + AI agents ─────────────────────
+# Templating: {{ path.to.value | filter | filter2 }}. See
+# w3-action-template/docs/display-schema.md for the canonical reference.
+display:
+  brand:
+    name: "W3 Vault"
+    short_name: "W3 Vault"
+    description: "Yelay-whitelabeled USDC yield vault"
+    logo: "https://raw.githubusercontent.com/w3-io/w3-vault-action/main/assets/logo.svg"
+    color: "#E11D48"
+
+  commands:
+    build-deposit:
+      icon: "vault"
+      title_template: "Build W3 Vault deposit"
+      subtitle_template: "{{ inputs.amount }} USDC → vault {{ outputs.result.vault | truncate_addr }} ({{ outputs.result.chain | chain_pretty }})"
+      summary:
+        - { label: "Intent", value: "yelay-deposit" }
+        - {
+            label: "Vault",
+            value: "{{ outputs.result.vault | truncate_addr }}",
+          }
+        - { label: "Project ID", value: "{{ outputs.result.projectId }}" }
+        - {
+            label: "Amount",
+            value: "{{ outputs.result.amountFormatted }} USDC",
+          }
+        - {
+            label: "Receiver",
+            value: "{{ outputs.result.receiver | truncate_addr }}",
+          }
+
+    build-approve:
+      icon: "check"
+      title_template: "Build approve (exact-amount)"
+      subtitle_template: "{{ inputs.amount }} USDC → spender {{ outputs.result.spender | truncate_addr }}"
+      summary:
+        - { label: "Intent", value: "erc20-approve" }
+        - {
+            label: "Token",
+            value: "{{ outputs.result.token | truncate_addr }}",
+          }
+        - {
+            label: "Spender",
+            value: "{{ outputs.result.spender | truncate_addr }}",
+          }
+        - {
+            label: "Amount",
+            value: "{{ outputs.result.amountFormatted }} USDC (exact)",
+          }
+
+    deposit:
+      icon: "vault"
+      title_template: "Deposit to W3 Vault"
+      subtitle_template: "{{ outputs.result.amountFormatted }} USDC"
+      summary:
+        - {
+            label: "Amount",
+            value: "{{ outputs.result.amountFormatted }} USDC",
+          }
+        - {
+            label: "Vault",
+            value: "{{ outputs.result.vault | truncate_addr }}",
+          }
+        - { label: "Tx", value: "{{ outputs.result.txHash | truncate_addr }}" }
+      tx_hash_path: "outputs.result.txHash"
+      chain_explorer:
+        ethereum: "https://etherscan.io/tx/{{tx_hash}}"
+        base: "https://basescan.org/tx/{{tx_hash}}"
+
+    redeem:
+      icon: "redeem"
+      title_template: "Redeem W3 Vault shares"
+      subtitle_template: "{{ outputs.result.shares }} shares → USDC"
+      summary:
+        - { label: "Shares", value: "{{ outputs.result.shares }}" }
+        - { label: "Tx", value: "{{ outputs.result.txHash | truncate_addr }}" }
+      tx_hash_path: "outputs.result.txHash"
+      chain_explorer:
+        ethereum: "https://etherscan.io/tx/{{tx_hash}}"
+        base: "https://basescan.org/tx/{{tx_hash}}"
+
+    status:
+      icon: "info"
+      title_template: "W3 Vault status"
+      subtitle_template: "{{ outputs.result.address | truncate_addr }}"
+      summary:
+        - {
+            label: "USDC Balance",
+            value: "{{ outputs.result.usdcBalance }} USDC",
+          }
+        - { label: "Vault Shares", value: "{{ outputs.result.shares }}" }
+        - {
+            label: "Share Value",
+            value: "{{ outputs.result.shareValuePer1USDC }} USDC per share",
+          }
