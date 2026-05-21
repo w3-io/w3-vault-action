@@ -1,8 +1,22 @@
 // Direct Yelay vault operations — deposit USDC, redeem shares, check balance.
 // No operator contract, no roles, no TradFi. Just ERC20 approve + vault.deposit.
+//
+// Two execution modes:
+//   - `deposit` / `redeem` / `status` — sign & submit via the W3 bridge
+//   - `build-deposit` / `build-approve` — return unsigned tx intent for
+//     external signers (ForDefi, Safe, Fireblocks, etc.) to submit
+//
+// The build-* variants do not touch the bridge or signer. They are pure
+// calldata producers: take amount + environment + receiver, return the
+// `{ chain, to, value, data }` payload a submitter action can consume.
 
 import { W3ActionError } from "@w3-io/action-core";
 import { ENVIRONMENTS, METHODS } from "./contracts.js";
+import {
+  encodeApprove,
+  encodeYelayDeposit,
+  parseUsdcAmount as parseUsdcAmountForEncode,
+} from "./encode.js";
 
 export function resolveEnvironment(env) {
   const config = ENVIRONMENTS[env];
@@ -111,6 +125,93 @@ export async function redeem(bridge, opts) {
     shares: opts.shares,
     projectId: env.projectId,
     txHash: result.txHash || result.transactionHash || result.result,
+  };
+}
+
+/**
+ * Build an unsigned deposit transaction intent for the configured
+ * environment's Yelay vault. The returned payload is what an external
+ * signer (ForDefi, Safe, etc.) consumes — never broadcast by this
+ * action.
+ *
+ * Caller's responsibility: ensure the resolved `receiver` (or the
+ * signer if `receiver` is omitted) has at least `amount` USDC and an
+ * existing approval to the vault for `amount` USDC. The companion
+ * `buildApprove` command produces the matching exact-amount approve.
+ */
+export function buildDeposit(opts) {
+  if (!opts.amount) {
+    throw new W3ActionError(
+      "MISSING_INPUT",
+      "amount is required (e.g. '2000.00')",
+    );
+  }
+  if (!opts.receiver) {
+    throw new W3ActionError(
+      "MISSING_INPUT",
+      "receiver is required for build-deposit (the address that will own the vault shares)",
+    );
+  }
+  const env = resolveEnvironment(opts.environment);
+  const amountRaw = parseUsdcAmountForEncode(opts.amount);
+  const hexData = encodeYelayDeposit(amountRaw, env.projectId, opts.receiver);
+
+  return {
+    intent: "yelay-deposit",
+    chain: env.network,
+    chainId: env.chainId,
+    to: env.vault,
+    value: "0",
+    data: { type: "hex", hex_data: hexData },
+    selector: hexData.slice(0, 10),
+    vault: env.vault,
+    projectId: env.projectId,
+    underlying: env.usdc,
+    amount: amountRaw,
+    amountFormatted: opts.amount,
+    receiver: opts.receiver,
+    environment: env.name,
+  };
+}
+
+/**
+ * Build an unsigned exact-amount approve transaction intent. The
+ * spender defaults to the configured environment's vault address. The
+ * amount MUST be exact — this builder will never produce a max-uint
+ * approve. Caller may pass an explicit `spender` to approve any other
+ * contract (useful when approving a router or a different vault).
+ */
+export function buildApprove(opts) {
+  if (!opts.amount) {
+    throw new W3ActionError(
+      "MISSING_INPUT",
+      "amount is required (exact USDC amount, e.g. '2000.00'; max-uint approvals are disallowed)",
+    );
+  }
+  const env = resolveEnvironment(opts.environment);
+  const spender = opts.spender || env.vault;
+  if (!/^0x[a-fA-F0-9]{40}$/.test(spender)) {
+    throw new W3ActionError(
+      "INVALID_INPUT",
+      `spender must be a 20-byte hex address; got "${spender}"`,
+    );
+  }
+  const amountRaw = parseUsdcAmountForEncode(opts.amount);
+  const hexData = encodeApprove(spender, amountRaw);
+
+  return {
+    intent: "erc20-approve",
+    chain: env.network,
+    chainId: env.chainId,
+    to: env.usdc,
+    value: "0",
+    data: { type: "hex", hex_data: hexData },
+    selector: hexData.slice(0, 10),
+    token: env.usdc,
+    spender,
+    amount: amountRaw,
+    amountFormatted: opts.amount,
+    environment: env.name,
   };
 }
 

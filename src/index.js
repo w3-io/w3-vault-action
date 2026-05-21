@@ -5,7 +5,13 @@ import {
 } from "@w3-io/action-core";
 import { bridge } from "@w3-io/action-core";
 import * as core from "@actions/core";
-import { deposit, redeem, status } from "./vault.js";
+import {
+  deposit,
+  redeem,
+  status,
+  buildDeposit,
+  buildApprove,
+} from "./vault.js";
 
 function getRpcUrl() {
   return core.getInput("rpc-url") || undefined;
@@ -61,6 +67,47 @@ const router = createCommandRouter({
       .addHeading("W3 Vault: status", 3)
       .addRaw(`**USDC Balance:** ${result.usdcBalance}\n\n`)
       .addRaw(`**Shares:** ${result.shares}\n\n`)
+      .write();
+  },
+
+  // ── Intent builders (no bridge call, no signing, no broadcast) ──
+  //
+  // Return structured tx payloads for external signers (ForDefi, Safe,
+  // Fireblocks, etc.) to consume. The companion submitter action does
+  // the actual signing.
+
+  "build-deposit": async () => {
+    const amount = core.getInput("amount", { required: true });
+    const environment = core.getInput("environment") || "testing";
+    const receiver = core.getInput("receiver", { required: true });
+    const result = buildDeposit({ amount, environment, receiver });
+    setJsonOutput("result", result);
+    core.summary
+      .addHeading("W3 Vault: build-deposit (intent only)", 3)
+      .addRaw(`**Amount:** ${result.amountFormatted} USDC\n\n`)
+      .addRaw(`**Vault:** \`${result.vault}\` (${result.chain})\n\n`)
+      .addRaw(`**Project ID:** ${result.projectId}\n\n`)
+      .addRaw(`**Receiver:** \`${result.receiver}\`\n\n`)
+      .addRaw(`**Calldata:** \`${result.data.hex_data}\`\n\n`)
+      .addRaw(
+        `_No transaction was signed or submitted. Pass this payload to a signer action._\n`,
+      )
+      .write();
+  },
+
+  "build-approve": async () => {
+    const amount = core.getInput("amount", { required: true });
+    const environment = core.getInput("environment") || "testing";
+    const spender = core.getInput("spender") || undefined;
+    const result = buildApprove({ amount, environment, spender });
+    setJsonOutput("result", result);
+    core.summary
+      .addHeading("W3 Vault: build-approve (intent only)", 3)
+      .addRaw(`**Amount:** ${result.amountFormatted} USDC (exact)\n\n`)
+      .addRaw(`**Token:** \`${result.token}\`\n\n`)
+      .addRaw(`**Spender:** \`${result.spender}\`\n\n`)
+      .addRaw(`**Calldata:** \`${result.data.hex_data}\`\n\n`)
+      .addRaw(`_Max-uint approvals are not supported by this builder._\n`)
       .write();
   },
 });

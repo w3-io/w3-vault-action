@@ -27995,9 +27995,16 @@ function createMockCore() {
 
 
 ;// CONCATENATED MODULE: ./src/contracts.js
-// Yelay vault contracts on Base.
+// Yelay vault configs per W3 deployment environment.
+//
+// `network` is the W3 bridge network identifier (not the ForDefi
+// chain unique_id — those differ). For ForDefi-signed flows that
+// consume calldata produced by `build-deposit`, see the bridge
+// network → ForDefi chain mapping documented in
+// w3-action.yaml's display:.commands[*].chain_explorer block.
 
 const ENVIRONMENTS = {
+  // Yelay test deployment on Base. Permissionless for development.
   testing: {
     name: "testing",
     vault: "0x7b3D25c37c6ADf650F1f7696be2278cCFa2b638F",
@@ -28006,6 +28013,29 @@ const ENVIRONMENTS = {
     chainId: 8453,
     network: "base",
   },
+  // Base production (Yelay smart-vault). projectId=1.
+  "base-production": {
+    name: "base-production",
+    vault: "0x0c6dAf9B4e0EB49A0c80c325da82EC028Cb8118B",
+    usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    projectId: 1,
+    chainId: 8453,
+    network: "base",
+  },
+  // Ethereum production — the W3 Vault that payments.w3.io reads
+  // APY from. projectId 30301 (0x765d) is the W3-owned project
+  // inside the Yelay smart-vault. This is the canonical demo target.
+  "ethereum-production": {
+    name: "ethereum-production",
+    vault: "0x39DAc87bE293DC855b60feDd89667364865378cc",
+    usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    projectId: 30301,
+    chainId: 1,
+    network: "ethereum",
+  },
+  // Backwards-compatible alias: existing callers that pass
+  // `environment: production` continue to hit Base. New callers
+  // should be explicit about which network.
   production: {
     name: "production",
     vault: "0x0c6dAf9B4e0EB49A0c80c325da82EC028Cb8118B",
@@ -28013,6 +28043,7 @@ const ENVIRONMENTS = {
     projectId: 1,
     chainId: 8453,
     network: "base",
+    _alias_of: "base-production",
   },
 };
 
@@ -28033,9 +28064,112 @@ const METHODS = {
   underlyingAsset: "function underlyingAsset() returns (address)",
 };
 
+;// CONCATENATED MODULE: ./src/encode.js
+// Hand-rolled ABI encoder for the three calldata shapes this action
+// produces. All inputs are static types (uint256/address) so the
+// encoding is just selector + 32-byte-padded args.
+//
+// Selectors are keccak256("functionName(arg_types)")[:4]. Hard-coded
+// here so the action has no chain-call or external-encoding dependency.
+//
+// W3 policy: amounts in approve calls MUST be exact. Never max-uint.
+// Enforced upstream by tools/check-no-max-approve.sh in w3-solutions.
+
+
+
+const SELECTORS = {
+  // ERC-20
+  approve: "095ea7b3", // approve(address,uint256)
+  // Yelay smart-vault
+  yelayDeposit: "8dbdbe6d", // deposit(uint256,uint256,address) — assets, projectId, receiver
+  yelayRedeem: "049104e5", // redeem(uint256,uint256,address) — shares, projectId, receiver
+};
+
+function pad32Hex(value) {
+  if (typeof value !== "string") {
+    throw new error_W3ActionError(
+      "INVALID_INPUT",
+      `pad32Hex requires hex string; got ${typeof value}`,
+    );
+  }
+  return value.toLowerCase().replace(/^0x/, "").padStart(64, "0");
+}
+
+function pad32BigInt(value) {
+  let bi;
+  try {
+    bi = BigInt(value);
+  } catch {
+    throw new error_W3ActionError(
+      "INVALID_INPUT",
+      `pad32BigInt: cannot convert "${value}" to BigInt`,
+    );
+  }
+  if (bi < 0n) {
+    throw new error_W3ActionError(
+      "INVALID_INPUT",
+      `pad32BigInt: negative values not supported (got ${bi})`,
+    );
+  }
+  return bi.toString(16).padStart(64, "0");
+}
+
+/** Encode `approve(spender, amount)`. */
+function encodeApprove(spender, amount) {
+  return "0x" + SELECTORS.approve + pad32Hex(spender) + pad32BigInt(amount);
+}
+
+/** Encode Yelay `deposit(assets, projectId, receiver)` for a smart-vault. */
+function encodeYelayDeposit(amount, projectId, receiver) {
+  return (
+    "0x" +
+    SELECTORS.yelayDeposit +
+    pad32BigInt(amount) +
+    pad32BigInt(projectId) +
+    pad32Hex(receiver)
+  );
+}
+
+/** Encode Yelay `redeem(shares, projectId, receiver)`. */
+function encodeYelayRedeem(shares, projectId, receiver) {
+  return (
+    "0x" +
+    SELECTORS.yelayRedeem +
+    pad32BigInt(shares) +
+    pad32BigInt(projectId) +
+    pad32Hex(receiver)
+  );
+}
+
+/** Convert USDC amount string ("2000.00") to base units string ("2000000000"). */
+function parseUsdcAmount(amount) {
+  if (typeof amount !== "string") {
+    throw new error_W3ActionError(
+      "INVALID_INPUT",
+      `amount must be a string (e.g. "2000.00"); got ${typeof amount}`,
+    );
+  }
+  const parts = amount.split(".");
+  const whole = parts[0] || "0";
+  const frac = (parts[1] || "").padEnd(6, "0").slice(0, 6);
+  // Strip leading zeros from whole portion but keep at least "0".
+  const wholeNorm = whole.replace(/^0+/, "") || "0";
+  return wholeNorm + frac;
+}
+
 ;// CONCATENATED MODULE: ./src/vault.js
 // Direct Yelay vault operations — deposit USDC, redeem shares, check balance.
 // No operator contract, no roles, no TradFi. Just ERC20 approve + vault.deposit.
+//
+// Two execution modes:
+//   - `deposit` / `redeem` / `status` — sign & submit via the W3 bridge
+//   - `build-deposit` / `build-approve` — return unsigned tx intent for
+//     external signers (ForDefi, Safe, Fireblocks, etc.) to submit
+//
+// The build-* variants do not touch the bridge or signer. They are pure
+// calldata producers: take amount + environment + receiver, return the
+// `{ chain, to, value, data }` payload a submitter action can consume.
+
 
 
 
@@ -28055,7 +28189,7 @@ function rpcParam(opts) {
   return opts.rpcUrl ? { rpcUrl: opts.rpcUrl } : {};
 }
 
-function parseUsdcAmount(amount) {
+function vault_parseUsdcAmount(amount) {
   const parts = amount.split(".");
   const whole = parts[0];
   const frac = (parts[1] || "").padEnd(6, "0").slice(0, 6);
@@ -28076,7 +28210,7 @@ function formatUsdc(raw) {
  */
 async function deposit(bridge, opts) {
   const env = resolveEnvironment(opts.environment);
-  const amountRaw = parseUsdcAmount(opts.amount);
+  const amountRaw = vault_parseUsdcAmount(opts.amount);
 
   // Step 1: Approve USDC for the vault
   await bridge.chain(
@@ -28147,6 +28281,93 @@ async function redeem(bridge, opts) {
     shares: opts.shares,
     projectId: env.projectId,
     txHash: result.txHash || result.transactionHash || result.result,
+  };
+}
+
+/**
+ * Build an unsigned deposit transaction intent for the configured
+ * environment's Yelay vault. The returned payload is what an external
+ * signer (ForDefi, Safe, etc.) consumes — never broadcast by this
+ * action.
+ *
+ * Caller's responsibility: ensure the resolved `receiver` (or the
+ * signer if `receiver` is omitted) has at least `amount` USDC and an
+ * existing approval to the vault for `amount` USDC. The companion
+ * `buildApprove` command produces the matching exact-amount approve.
+ */
+function buildDeposit(opts) {
+  if (!opts.amount) {
+    throw new error_W3ActionError(
+      "MISSING_INPUT",
+      "amount is required (e.g. '2000.00')",
+    );
+  }
+  if (!opts.receiver) {
+    throw new error_W3ActionError(
+      "MISSING_INPUT",
+      "receiver is required for build-deposit (the address that will own the vault shares)",
+    );
+  }
+  const env = resolveEnvironment(opts.environment);
+  const amountRaw = parseUsdcAmount(opts.amount);
+  const hexData = encodeYelayDeposit(amountRaw, env.projectId, opts.receiver);
+
+  return {
+    intent: "yelay-deposit",
+    chain: env.network,
+    chainId: env.chainId,
+    to: env.vault,
+    value: "0",
+    data: { type: "hex", hex_data: hexData },
+    selector: hexData.slice(0, 10),
+    vault: env.vault,
+    projectId: env.projectId,
+    underlying: env.usdc,
+    amount: amountRaw,
+    amountFormatted: opts.amount,
+    receiver: opts.receiver,
+    environment: env.name,
+  };
+}
+
+/**
+ * Build an unsigned exact-amount approve transaction intent. The
+ * spender defaults to the configured environment's vault address. The
+ * amount MUST be exact — this builder will never produce a max-uint
+ * approve. Caller may pass an explicit `spender` to approve any other
+ * contract (useful when approving a router or a different vault).
+ */
+function buildApprove(opts) {
+  if (!opts.amount) {
+    throw new error_W3ActionError(
+      "MISSING_INPUT",
+      "amount is required (exact USDC amount, e.g. '2000.00'; max-uint approvals are disallowed)",
+    );
+  }
+  const env = resolveEnvironment(opts.environment);
+  const spender = opts.spender || env.vault;
+  if (!/^0x[a-fA-F0-9]{40}$/.test(spender)) {
+    throw new error_W3ActionError(
+      "INVALID_INPUT",
+      `spender must be a 20-byte hex address; got "${spender}"`,
+    );
+  }
+  const amountRaw = parseUsdcAmount(opts.amount);
+  const hexData = encodeApprove(spender, amountRaw);
+
+  return {
+    intent: "erc20-approve",
+    chain: env.network,
+    chainId: env.chainId,
+    to: env.usdc,
+    value: "0",
+    data: { type: "hex", hex_data: hexData },
+    selector: hexData.slice(0, 10),
+    token: env.usdc,
+    spender,
+    amount: amountRaw,
+    amountFormatted: opts.amount,
+    environment: env.name,
   };
 }
 
@@ -28251,6 +28472,47 @@ const router = createCommandRouter({
       .addHeading("W3 Vault: status", 3)
       .addRaw(`**USDC Balance:** ${result.usdcBalance}\n\n`)
       .addRaw(`**Shares:** ${result.shares}\n\n`)
+      .write();
+  },
+
+  // ── Intent builders (no bridge call, no signing, no broadcast) ──
+  //
+  // Return structured tx payloads for external signers (ForDefi, Safe,
+  // Fireblocks, etc.) to consume. The companion submitter action does
+  // the actual signing.
+
+  "build-deposit": async () => {
+    const amount = lib_core.getInput("amount", { required: true });
+    const environment = lib_core.getInput("environment") || "testing";
+    const receiver = lib_core.getInput("receiver", { required: true });
+    const result = buildDeposit({ amount, environment, receiver });
+    setJsonOutput("result", result);
+    lib_core.summary
+      .addHeading("W3 Vault: build-deposit (intent only)", 3)
+      .addRaw(`**Amount:** ${result.amountFormatted} USDC\n\n`)
+      .addRaw(`**Vault:** \`${result.vault}\` (${result.chain})\n\n`)
+      .addRaw(`**Project ID:** ${result.projectId}\n\n`)
+      .addRaw(`**Receiver:** \`${result.receiver}\`\n\n`)
+      .addRaw(`**Calldata:** \`${result.data.hex_data}\`\n\n`)
+      .addRaw(
+        `_No transaction was signed or submitted. Pass this payload to a signer action._\n`,
+      )
+      .write();
+  },
+
+  "build-approve": async () => {
+    const amount = lib_core.getInput("amount", { required: true });
+    const environment = lib_core.getInput("environment") || "testing";
+    const spender = lib_core.getInput("spender") || undefined;
+    const result = buildApprove({ amount, environment, spender });
+    setJsonOutput("result", result);
+    lib_core.summary
+      .addHeading("W3 Vault: build-approve (intent only)", 3)
+      .addRaw(`**Amount:** ${result.amountFormatted} USDC (exact)\n\n`)
+      .addRaw(`**Token:** \`${result.token}\`\n\n`)
+      .addRaw(`**Spender:** \`${result.spender}\`\n\n`)
+      .addRaw(`**Calldata:** \`${result.data.hex_data}\`\n\n`)
+      .addRaw(`_Max-uint approvals are not supported by this builder._\n`)
       .write();
   },
 });
