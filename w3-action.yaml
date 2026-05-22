@@ -224,3 +224,5 @@ display:
             label: "Share Value",
             value: "{{ outputs.result.shareValuePer1USDC }} USDC per share",
           }
+      chain_path: "outputs.result.chain"
+      destination_brand_path: "outputs.result.vault"

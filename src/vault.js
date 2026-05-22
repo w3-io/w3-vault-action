@@ -246,6 +246,8 @@ export async function status(bridge, opts) {
 
   return {
     environment: env.name,
+    chain: env.network,
+    chainId: env.chainId,
     vault: env.vault,
     address,
     usdcBalance: formatUsdc(usdcBalance.result),
