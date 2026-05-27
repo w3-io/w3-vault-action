@@ -28313,7 +28313,7 @@ function buildDeposit(opts) {
   const hexData = encodeYelayDeposit(amountRaw, env.projectId, opts.receiver);
 
   return {
-    intent: "yelay-deposit",
+    intent: "w3-vault-deposit",
     chain: env.network,
     chainId: env.chainId,
     to: env.vault,
@@ -28489,6 +28489,16 @@ const router = createCommandRouter({
     const receiver = lib_core.getInput("receiver", { required: true });
     const result = buildDeposit({ amount, environment, receiver });
     setJsonOutput("result", result);
+    // Flat per-field outputs for workflow consumption — see comment
+    // on the matching commands in w3-opentrade-action.
+    lib_core.setOutput("to", result.to);
+    lib_core.setOutput("chain", result.chain);
+    lib_core.setOutput("chain_id", String(result.chainId));
+    lib_core.setOutput("data_hex", result.data.hex_data);
+    lib_core.setOutput("amount", result.amount);
+    lib_core.setOutput("amount_formatted", result.amountFormatted);
+    lib_core.setOutput("vault", result.vault);
+    lib_core.setOutput("receiver", result.receiver);
     lib_core.summary
       .addHeading("W3 Vault: build-deposit (intent only)", 3)
       .addRaw(`**Amount:** ${result.amountFormatted} USDC\n\n`)
@@ -28508,6 +28518,14 @@ const router = createCommandRouter({
     const spender = lib_core.getInput("spender") || undefined;
     const result = buildApprove({ amount, environment, spender });
     setJsonOutput("result", result);
+    // Flat per-field outputs for workflow consumption.
+    lib_core.setOutput("to", result.to);
+    lib_core.setOutput("chain", result.chain);
+    lib_core.setOutput("chain_id", String(result.chainId));
+    lib_core.setOutput("data_hex", result.data.hex_data);
+    lib_core.setOutput("amount", result.amount);
+    lib_core.setOutput("amount_formatted", result.amountFormatted);
+    lib_core.setOutput("spender", result.spender);
     lib_core.summary
       .addHeading("W3 Vault: build-approve (intent only)", 3)
       .addRaw(`**Amount:** ${result.amountFormatted} USDC (exact)\n\n`)

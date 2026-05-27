@@ -82,6 +82,16 @@ const router = createCommandRouter({
     const receiver = core.getInput("receiver", { required: true });
     const result = buildDeposit({ amount, environment, receiver });
     setJsonOutput("result", result);
+    // Flat per-field outputs for workflow consumption — see comment
+    // on the matching commands in w3-opentrade-action.
+    core.setOutput("to", result.to);
+    core.setOutput("chain", result.chain);
+    core.setOutput("chain_id", String(result.chainId));
+    core.setOutput("data_hex", result.data.hex_data);
+    core.setOutput("amount", result.amount);
+    core.setOutput("amount_formatted", result.amountFormatted);
+    core.setOutput("vault", result.vault);
+    core.setOutput("receiver", result.receiver);
     core.summary
       .addHeading("W3 Vault: build-deposit (intent only)", 3)
       .addRaw(`**Amount:** ${result.amountFormatted} USDC\n\n`)
@@ -101,6 +111,14 @@ const router = createCommandRouter({
     const spender = core.getInput("spender") || undefined;
     const result = buildApprove({ amount, environment, spender });
     setJsonOutput("result", result);
+    // Flat per-field outputs for workflow consumption.
+    core.setOutput("to", result.to);
+    core.setOutput("chain", result.chain);
+    core.setOutput("chain_id", String(result.chainId));
+    core.setOutput("data_hex", result.data.hex_data);
+    core.setOutput("amount", result.amount);
+    core.setOutput("amount_formatted", result.amountFormatted);
+    core.setOutput("spender", result.spender);
     core.summary
       .addHeading("W3 Vault: build-approve (intent only)", 3)
       .addRaw(`**Amount:** ${result.amountFormatted} USDC (exact)\n\n`)

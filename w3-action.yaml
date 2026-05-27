@@ -4,8 +4,8 @@ name: W3 Vault
 version: 1.0.0
 repo: w3-io/w3-vault-action
 description: >
-  W3 Vault — a Yelay-whitelabeled USDC yield vault. Deposit USDC into
-  the smart-vault and earn protocol-curated DeFi yield; redeem shares
+  W3 Vault — a managed USDC yield smart-vault. Deposit USDC into
+  the vault and earn protocol-curated DeFi yield; redeem shares
   back to USDC at any time.
 context: >
   Use the submitting commands (deposit, redeem, status) when the
@@ -20,7 +20,7 @@ context: >
 commands:
   # ── Submitting commands (signs + broadcasts via W3 bridge) ──
   - name: deposit
-    description: Deposit USDC into the configured Yelay vault (bridge-signed).
+    description: Deposit USDC into the configured W3 Vault (bridge-signed).
     inputs:
       amount:
         type: string
@@ -101,7 +101,7 @@ commands:
       result:
         type: object
         description: >
-          {intent:"yelay-deposit", chain, chainId, to, value, data:{type,hex_data},
+          {intent:"w3-vault-deposit", chain, chainId, to, value, data:{type,hex_data},
            selector, vault, projectId, underlying, amount, amountFormatted,
            receiver, environment}
 
@@ -135,49 +135,19 @@ display:
   brand:
     name: "W3 Vault"
     short_name: "W3 Vault"
-    description: "Yelay-whitelabeled USDC yield vault"
+    description: "Managed USDC yield smart-vault"
     logo: "https://raw.githubusercontent.com/w3-io/w3-vault-action/main/assets/logo.svg"
     color: "#E11D48"
 
   commands:
+    # Intent-builder commands are pre-flight setup for a downstream
+    # signer. Hidden from the run view to cut scroll length — the
+    # signer card already conveys the narrative.
     build-deposit:
-      icon: "vault"
-      title_template: "Build W3 Vault deposit"
-      subtitle_template: "{{ inputs.amount }} USDC → vault {{ outputs.result.vault | truncate_addr }} ({{ outputs.result.chain | chain_pretty }})"
-      summary:
-        - { label: "Intent", value: "yelay-deposit" }
-        - {
-            label: "Vault",
-            value: "{{ outputs.result.vault | truncate_addr }}",
-          }
-        - { label: "Project ID", value: "{{ outputs.result.projectId }}" }
-        - {
-            label: "Amount",
-            value: "{{ outputs.result.amountFormatted }} USDC",
-          }
-        - {
-            label: "Receiver",
-            value: "{{ outputs.result.receiver | truncate_addr }}",
-          }
+      hide_from_view: true
 
     build-approve:
-      icon: "check"
-      title_template: "Build approve (exact-amount)"
-      subtitle_template: "{{ inputs.amount }} USDC → spender {{ outputs.result.spender | truncate_addr }}"
-      summary:
-        - { label: "Intent", value: "erc20-approve" }
-        - {
-            label: "Token",
-            value: "{{ outputs.result.token | truncate_addr }}",
-          }
-        - {
-            label: "Spender",
-            value: "{{ outputs.result.spender | truncate_addr }}",
-          }
-        - {
-            label: "Amount",
-            value: "{{ outputs.result.amountFormatted }} USDC (exact)",
-          }
+      hide_from_view: true
 
     deposit:
       icon: "vault"

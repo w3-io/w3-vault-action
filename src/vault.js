@@ -157,7 +157,7 @@ export function buildDeposit(opts) {
   const hexData = encodeYelayDeposit(amountRaw, env.projectId, opts.receiver);
 
   return {
-    intent: "yelay-deposit",
+    intent: "w3-vault-deposit",
     chain: env.network,
     chainId: env.chainId,
     to: env.vault,
