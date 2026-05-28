@@ -15,11 +15,15 @@ const YIELD_API_DEFAULT = "https://yield.w3.io/api/vaults";
 // care about (apy7d/apy1d/tvl) is public.
 const ZERO_CLIENT = "0x0000000000000000000000000000000000000000";
 
-function pickApyField(entry, keys) {
-  for (const k of keys) {
-    if (entry && entry[k] != null) return Number(entry[k]);
-  }
-  return null;
+// yield.w3.io returns APY as a percent number (e.g. 11 for 11%);
+// normalize to a decimal (0.11) so the display filter
+// `format_pct_decimal` can render it consistently with other
+// percent-shaped values.
+function asDecimal(pct) {
+  if (pct == null) return null;
+  const n = Number(pct);
+  if (!Number.isFinite(n)) return null;
+  return n / 100;
 }
 
 export async function getApy(opts) {
@@ -49,7 +53,9 @@ export async function getApy(opts) {
 
   const wantAddr = env.vault.toLowerCase();
   const match = list.find((v) => {
-    const addr = (v?.address || v?.vault || "").toLowerCase();
+    const addr = (v?.vaultAddress || v?.address || v?.vault || "")
+      .toString()
+      .toLowerCase();
     return addr === wantAddr;
   });
   if (!match) {
@@ -59,17 +65,11 @@ export async function getApy(opts) {
     );
   }
 
-  // Field names vary by API version; try the common ones.
-  const apy7d = pickApyField(match, [
-    "apy7d",
-    "apy_7d",
-    "sevenDayApy",
-    "weeklyApy",
-    "apy",
-  ]);
-  const apy1d = pickApyField(match, ["apy1d", "apy_1d", "dailyApy"]);
-  const apy30d = pickApyField(match, ["apy30d", "apy_30d", "monthlyApy"]);
-  const tvl = pickApyField(match, ["tvl", "totalAssets", "assets"]);
+  const apy = match.apy || {};
+  const apy7d = asDecimal(apy["7d"] ?? match.apy7d);
+  const apy1d = asDecimal(apy["24h"] ?? apy["1d"] ?? match.apy1d);
+  const apy30d = asDecimal(apy["30d"] ?? match.apy30d);
+  const tvl = match.tvl ?? match.totalAssets ?? null;
 
   return {
     vault: env.vault,
