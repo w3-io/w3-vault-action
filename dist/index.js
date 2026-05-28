@@ -28331,6 +28331,57 @@ function buildDeposit(opts) {
 }
 
 /**
+ * Build an unsigned redeem transaction intent. `shares` is the raw
+ * Yelay share token amount to burn (read from `balanceOf(holder, id)`
+ * — Yelay smart-vaults use ERC-1155 share semantics with one id per
+ * projectId). The resulting USDC is delivered to `receiver` in the
+ * same transaction.
+ *
+ * Caller's responsibility: ensure `msg.sender` (the signer) owns the
+ * shares being redeemed. There is no approval step for ERC-1155
+ * burn-by-owner.
+ */
+function buildRedeem(opts) {
+  if (opts.shares === undefined || opts.shares === null || opts.shares === "") {
+    throw new error_W3ActionError(
+      "MISSING_INPUT",
+      "shares is required (raw base-unit integer)",
+    );
+  }
+  if (!opts.receiver) {
+    throw new error_W3ActionError(
+      "MISSING_INPUT",
+      "receiver is required (the address that receives the USDC)",
+    );
+  }
+  if (!/^0x[a-fA-F0-9]{40}$/.test(opts.receiver)) {
+    throw new error_W3ActionError(
+      "INVALID_INPUT",
+      `receiver must be a 20-byte hex address; got "${opts.receiver}"`,
+    );
+  }
+  const env = resolveEnvironment(opts.environment);
+  const sharesStr = String(opts.shares);
+  const hexData = encodeYelayRedeem(sharesStr, env.projectId, opts.receiver);
+
+  return {
+    intent: "w3-vault-redeem",
+    chain: env.network,
+    chainId: env.chainId,
+    to: env.vault,
+    value: "0",
+    data: { type: "hex", hex_data: hexData },
+    selector: hexData.slice(0, 10),
+    vault: env.vault,
+    projectId: env.projectId,
+    underlying: env.usdc,
+    shares: sharesStr,
+    receiver: opts.receiver,
+    environment: env.name,
+  };
+}
+
+/**
  * Build an unsigned exact-amount approve transaction intent. The
  * spender defaults to the configured environment's vault address. The
  * amount MUST be exact — this builder will never produce a max-uint
@@ -28590,6 +28641,32 @@ const router = createCommandRouter({
     lib_core.summary
       .addHeading("W3 Vault: build-deposit (intent only)", 3)
       .addRaw(`**Amount:** ${result.amountFormatted} USDC\n\n`)
+      .addRaw(`**Vault:** \`${result.vault}\` (${result.chain})\n\n`)
+      .addRaw(`**Project ID:** ${result.projectId}\n\n`)
+      .addRaw(`**Receiver:** \`${result.receiver}\`\n\n`)
+      .addRaw(`**Calldata:** \`${result.data.hex_data}\`\n\n`)
+      .addRaw(
+        `_No transaction was signed or submitted. Pass this payload to a signer action._\n`,
+      )
+      .write();
+  },
+
+  "build-redeem": async () => {
+    const shares = lib_core.getInput("shares", { required: true });
+    const environment = lib_core.getInput("environment") || "testing";
+    const receiver = lib_core.getInput("receiver", { required: true });
+    const result = buildRedeem({ shares, environment, receiver });
+    setJsonOutput("result", result);
+    lib_core.setOutput("to", result.to);
+    lib_core.setOutput("chain", result.chain);
+    lib_core.setOutput("chain_id", String(result.chainId));
+    lib_core.setOutput("data_hex", result.data.hex_data);
+    lib_core.setOutput("shares", result.shares);
+    lib_core.setOutput("vault", result.vault);
+    lib_core.setOutput("receiver", result.receiver);
+    lib_core.summary
+      .addHeading("W3 Vault: build-redeem (intent only)", 3)
+      .addRaw(`**Shares:** ${result.shares} (raw)\n\n`)
       .addRaw(`**Vault:** \`${result.vault}\` (${result.chain})\n\n`)
       .addRaw(`**Project ID:** ${result.projectId}\n\n`)
       .addRaw(`**Receiver:** \`${result.receiver}\`\n\n`)

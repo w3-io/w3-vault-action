@@ -15,6 +15,7 @@ import { ENVIRONMENTS, METHODS } from "./contracts.js";
 import {
   encodeApprove,
   encodeYelayDeposit,
+  encodeYelayRedeem,
   parseUsdcAmount as parseUsdcAmountForEncode,
 } from "./encode.js";
 
@@ -169,6 +170,57 @@ export function buildDeposit(opts) {
     underlying: env.usdc,
     amount: amountRaw,
     amountFormatted: opts.amount,
+    receiver: opts.receiver,
+    environment: env.name,
+  };
+}
+
+/**
+ * Build an unsigned redeem transaction intent. `shares` is the raw
+ * Yelay share token amount to burn (read from `balanceOf(holder, id)`
+ * — Yelay smart-vaults use ERC-1155 share semantics with one id per
+ * projectId). The resulting USDC is delivered to `receiver` in the
+ * same transaction.
+ *
+ * Caller's responsibility: ensure `msg.sender` (the signer) owns the
+ * shares being redeemed. There is no approval step for ERC-1155
+ * burn-by-owner.
+ */
+export function buildRedeem(opts) {
+  if (opts.shares === undefined || opts.shares === null || opts.shares === "") {
+    throw new W3ActionError(
+      "MISSING_INPUT",
+      "shares is required (raw base-unit integer)",
+    );
+  }
+  if (!opts.receiver) {
+    throw new W3ActionError(
+      "MISSING_INPUT",
+      "receiver is required (the address that receives the USDC)",
+    );
+  }
+  if (!/^0x[a-fA-F0-9]{40}$/.test(opts.receiver)) {
+    throw new W3ActionError(
+      "INVALID_INPUT",
+      `receiver must be a 20-byte hex address; got "${opts.receiver}"`,
+    );
+  }
+  const env = resolveEnvironment(opts.environment);
+  const sharesStr = String(opts.shares);
+  const hexData = encodeYelayRedeem(sharesStr, env.projectId, opts.receiver);
+
+  return {
+    intent: "w3-vault-redeem",
+    chain: env.network,
+    chainId: env.chainId,
+    to: env.vault,
+    value: "0",
+    data: { type: "hex", hex_data: hexData },
+    selector: hexData.slice(0, 10),
+    vault: env.vault,
+    projectId: env.projectId,
+    underlying: env.usdc,
+    shares: sharesStr,
     receiver: opts.receiver,
     environment: env.name,
   };

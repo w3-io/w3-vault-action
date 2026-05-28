@@ -158,6 +158,31 @@ commands:
           {intent:"erc20-approve", chain, chainId, to, value, data:{type,hex_data},
            selector, token, spender, amount, amountFormatted, environment}
 
+  - name: build-redeem
+    description: >
+      Build an unsigned redeem intent against the configured
+      environment's W3 Vault. Burns ERC-1155 shares (id = projectId)
+      owned by the signer and delivers USDC to `receiver` in the same
+      transaction. Pure: no bridge call, no signer touched.
+    inputs:
+      shares:
+        type: string
+        required: true
+        description: "Raw share amount to redeem (read from balanceOf(holder, projectId))"
+      receiver:
+        type: string
+        required: true
+        description: "Address that will receive the redeemed USDC"
+      environment:
+        type: string
+        required: false
+    outputs:
+      result:
+        type: object
+        description: >
+          {intent:"w3-vault-redeem", chain, chainId, to, value, data:{type,hex_data},
+           selector, vault, projectId, underlying, shares, receiver, environment}
+
 # ── Display metadata for W3 Explorer + AI agents ─────────────────────
 # Templating: {{ path.to.value | filter | filter2 }}. See
 # w3-action-template/docs/display-schema.md for the canonical reference.
@@ -177,6 +202,9 @@ display:
       hide_from_view: true
 
     build-approve:
+      hide_from_view: true
+
+    build-redeem:
       hide_from_view: true
 
     deposit:

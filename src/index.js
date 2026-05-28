@@ -11,6 +11,7 @@ import {
   status,
   buildDeposit,
   buildApprove,
+  buildRedeem,
 } from "./vault.js";
 import { getApy } from "./yield-api.js";
 
@@ -96,6 +97,32 @@ const router = createCommandRouter({
     core.summary
       .addHeading("W3 Vault: build-deposit (intent only)", 3)
       .addRaw(`**Amount:** ${result.amountFormatted} USDC\n\n`)
+      .addRaw(`**Vault:** \`${result.vault}\` (${result.chain})\n\n`)
+      .addRaw(`**Project ID:** ${result.projectId}\n\n`)
+      .addRaw(`**Receiver:** \`${result.receiver}\`\n\n`)
+      .addRaw(`**Calldata:** \`${result.data.hex_data}\`\n\n`)
+      .addRaw(
+        `_No transaction was signed or submitted. Pass this payload to a signer action._\n`,
+      )
+      .write();
+  },
+
+  "build-redeem": async () => {
+    const shares = core.getInput("shares", { required: true });
+    const environment = core.getInput("environment") || "testing";
+    const receiver = core.getInput("receiver", { required: true });
+    const result = buildRedeem({ shares, environment, receiver });
+    setJsonOutput("result", result);
+    core.setOutput("to", result.to);
+    core.setOutput("chain", result.chain);
+    core.setOutput("chain_id", String(result.chainId));
+    core.setOutput("data_hex", result.data.hex_data);
+    core.setOutput("shares", result.shares);
+    core.setOutput("vault", result.vault);
+    core.setOutput("receiver", result.receiver);
+    core.summary
+      .addHeading("W3 Vault: build-redeem (intent only)", 3)
+      .addRaw(`**Shares:** ${result.shares} (raw)\n\n`)
       .addRaw(`**Vault:** \`${result.vault}\` (${result.chain})\n\n`)
       .addRaw(`**Project ID:** ${result.projectId}\n\n`)
       .addRaw(`**Receiver:** \`${result.receiver}\`\n\n`)
