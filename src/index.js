@@ -12,6 +12,7 @@ import {
   buildDeposit,
   buildApprove,
 } from "./vault.js";
+import { getApy } from "./yield-api.js";
 
 function getRpcUrl() {
   return core.getInput("rpc-url") || undefined;
@@ -102,6 +103,32 @@ const router = createCommandRouter({
       .addRaw(
         `_No transaction was signed or submitted. Pass this payload to a signer action._\n`,
       )
+      .write();
+  },
+
+  "get-apy": async () => {
+    const environment = core.getInput("environment") || "ethereum-production";
+    const apiBase = core.getInput("api-base") || undefined;
+    const clientAddress = core.getInput("client-address") || undefined;
+    const result = await getApy({ environment, apiBase, clientAddress });
+    setJsonOutput("result", result);
+    // Flat outputs for workflow display blocks.
+    core.setOutput("vault", result.vault);
+    core.setOutput("chain", result.chain);
+    core.setOutput("chain_id", String(result.chainId));
+    core.setOutput("apy_7d", result.apy7d == null ? "" : String(result.apy7d));
+    core.setOutput("apy_1d", result.apy1d == null ? "" : String(result.apy1d));
+    core.setOutput(
+      "apy_30d",
+      result.apy30d == null ? "" : String(result.apy30d),
+    );
+    core.setOutput("tvl", result.tvl == null ? "" : String(result.tvl));
+    core.summary
+      .addHeading("W3 Vault: live APY", 3)
+      .addRaw(
+        `**7d APY:** ${result.apy7d == null ? "—" : (result.apy7d * 100).toFixed(2) + "%"}\n\n`,
+      )
+      .addRaw(`**Vault:** \`${result.vault}\` (${result.chain})\n\n`)
       .write();
   },
 

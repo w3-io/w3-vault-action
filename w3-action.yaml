@@ -79,6 +79,36 @@ commands:
         type: object
         description: "{environment, vault, address, usdcBalance, shares, shareValuePer1USDC, projectId}"
 
+  - name: get-apy
+    description: >
+      Fetch live APY for the configured environment's W3 Vault from
+      the W3 yield service. Returns the canonical 7d APY (matches
+      payments.w3.io) alongside 1d/30d and TVL when available.
+    inputs:
+      environment:
+        type: string
+        required: false
+        description: "Vault environment (defaults to ethereum-production)"
+      api-base:
+        type: string
+        required: false
+        description: "Override yield API base URL (default: https://yield.w3.io/api/vaults)"
+      client-address:
+        type: string
+        required: false
+        description: "Client address sent in the API request body (default: zero address)"
+    outputs:
+      result:
+        type: object
+        description: "{vault, chain, chainId, environment, apy7d, apy1d, apy30d, tvl, raw}"
+      apy_7d:
+        type: string
+        description: "7d APY as a decimal string (e.g. '0.1105' for 11.05%)"
+      apy_1d:
+        type: string
+      apy_30d:
+        type: string
+
   # ── Intent-builder commands (no signing, no broadcast) ──
   - name: build-deposit
     description: >
@@ -193,6 +223,22 @@ display:
         - {
             label: "Share Value",
             value: "{{ outputs.result.shareValuePer1USDC }} USDC per share",
+          }
+      chain_path: "outputs.result.chain"
+      destination_brand_path: "outputs.result.vault"
+
+    get-apy:
+      icon: "chart"
+      title_template: "W3 Vault — live yield"
+      subtitle_template: "Net APY, updated continuously"
+      summary:
+        - {
+            label: "7-day APY",
+            value: "{{ outputs.result.apy7d | format_pct_decimal }}",
+          }
+        - {
+            label: "Vault",
+            value: "{{ outputs.result.vault | truncate_addr }}",
           }
       chain_path: "outputs.result.chain"
       destination_brand_path: "outputs.result.vault"

@@ -28414,7 +28414,95 @@ async function vault_status(bridge, opts) {
   };
 }
 
+;// CONCATENATED MODULE: ./src/yield-api.js
+// Fetch live APY for the W3 Vault from the W3 yield service.
+//
+// Endpoint: https://yield.w3.io/api/vaults
+// Body: { clientAddress: <0x...> }
+// Returns an array of per-vault entries; we filter to the configured
+// environment's vault address and return the canonical headline 7d
+// APY (matches what payments.w3.io shows).
+
+
+
+
+const YIELD_API_DEFAULT = "https://yield.w3.io/api/vaults";
+// `clientAddress` is required by the upstream; we use the zero
+// address for unauthenticated reads since the response shape we
+// care about (apy7d/apy1d/tvl) is public.
+const ZERO_CLIENT = "0x0000000000000000000000000000000000000000";
+
+function pickApyField(entry, keys) {
+  for (const k of keys) {
+    if (entry && entry[k] != null) return Number(entry[k]);
+  }
+  return null;
+}
+
+async function getApy(opts) {
+  const env = resolveEnvironment(opts.environment);
+  const endpoint = opts.apiBase || YIELD_API_DEFAULT;
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ clientAddress: opts.clientAddress || ZERO_CLIENT }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new error_W3ActionError(
+      "HTTP_ERROR",
+      `Yield API ${res.status}: ${body.slice(0, 200)}`,
+    );
+  }
+  const data = await res.json();
+  const list = Array.isArray(data) ? data : (data?.vaults ?? data?.data ?? []);
+  if (!Array.isArray(list)) {
+    throw new error_W3ActionError(
+      "PARSE_ERROR",
+      "Yield API: response was not an array of vaults",
+    );
+  }
+
+  const wantAddr = env.vault.toLowerCase();
+  const match = list.find((v) => {
+    const addr = (v?.address || v?.vault || "").toLowerCase();
+    return addr === wantAddr;
+  });
+  if (!match) {
+    throw new error_W3ActionError(
+      "NOT_FOUND",
+      `Yield API: vault ${env.vault} not found in response (${list.length} entries)`,
+    );
+  }
+
+  // Field names vary by API version; try the common ones.
+  const apy7d = pickApyField(match, [
+    "apy7d",
+    "apy_7d",
+    "sevenDayApy",
+    "weeklyApy",
+    "apy",
+  ]);
+  const apy1d = pickApyField(match, ["apy1d", "apy_1d", "dailyApy"]);
+  const apy30d = pickApyField(match, ["apy30d", "apy_30d", "monthlyApy"]);
+  const tvl = pickApyField(match, ["tvl", "totalAssets", "assets"]);
+
+  return {
+    vault: env.vault,
+    chain: env.network,
+    chainId: env.chainId,
+    environment: env.name,
+    apy7d,
+    apy1d,
+    apy30d,
+    tvl,
+    raw: match,
+  };
+}
+
 ;// CONCATENATED MODULE: ./src/index.js
+
 
 
 
@@ -28509,6 +28597,32 @@ const router = createCommandRouter({
       .addRaw(
         `_No transaction was signed or submitted. Pass this payload to a signer action._\n`,
       )
+      .write();
+  },
+
+  "get-apy": async () => {
+    const environment = lib_core.getInput("environment") || "ethereum-production";
+    const apiBase = lib_core.getInput("api-base") || undefined;
+    const clientAddress = lib_core.getInput("client-address") || undefined;
+    const result = await getApy({ environment, apiBase, clientAddress });
+    setJsonOutput("result", result);
+    // Flat outputs for workflow display blocks.
+    lib_core.setOutput("vault", result.vault);
+    lib_core.setOutput("chain", result.chain);
+    lib_core.setOutput("chain_id", String(result.chainId));
+    lib_core.setOutput("apy_7d", result.apy7d == null ? "" : String(result.apy7d));
+    lib_core.setOutput("apy_1d", result.apy1d == null ? "" : String(result.apy1d));
+    lib_core.setOutput(
+      "apy_30d",
+      result.apy30d == null ? "" : String(result.apy30d),
+    );
+    lib_core.setOutput("tvl", result.tvl == null ? "" : String(result.tvl));
+    lib_core.summary
+      .addHeading("W3 Vault: live APY", 3)
+      .addRaw(
+        `**7d APY:** ${result.apy7d == null ? "—" : (result.apy7d * 100).toFixed(2) + "%"}\n\n`,
+      )
+      .addRaw(`**Vault:** \`${result.vault}\` (${result.chain})\n\n`)
       .write();
   },
 
